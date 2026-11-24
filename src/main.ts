@@ -4,7 +4,9 @@ import {
   createRenderer, createCamera, createScene, createPlaceholderGround,
   createPostProcessing, DebugHud,
 } from './core';
+import type { DebugHandle } from './debug/materialsDebug';
 
+const params = new URLSearchParams(location.search);
 const container = document.getElementById('app')!;
 const renderer = createRenderer(container);
 const { scene, sun } = createScene();
@@ -12,14 +14,21 @@ const { camera, controls } = createCamera(renderer.domElement, container.clientW
 const post = createPostProcessing(renderer, scene, camera);
 const hud = new DebugHud(renderer);
 
-scene.add(createPlaceholderGround());
-
 const gui = new GUI({ title: 'Debug' });
 gui.add(renderer, 'toneMappingExposure', 0.2, 3, 0.01).name('exposure');
-gui.add(post.bloom, 'strength', 0, 3, 0.01).name('bloom');
-gui.add(sun, 'intensity', 0, 5, 0.01).name('moonlight');
-gui.add(scene.fog as THREE.FogExp2, 'density', 0, 0.1, 0.001).name('fog');
+gui.add(post.bloom, 'strength', 0, 3, 0.01).name('bloom').listen();
+gui.add(sun, 'intensity', 0, 5, 0.01).name('key light').listen();
 gui.close();
+
+let debug: DebugHandle | null = null;
+if (params.get('debug') === 'materials') {
+  // Temporary inspection mode — loaded lazily so it never ships in the main path.
+  const { runMaterialsDebug } = await import('./debug/materialsDebug');
+  debug = await runMaterialsDebug({ container, renderer, scene, camera, controls, post, sun, gui });
+} else {
+  scene.add(createPlaceholderGround());
+  gui.add(scene.fog as THREE.FogExp2, 'density', 0, 0.1, 0.001).name('fog');
+}
 
 function onResize(): void {
   const w = container.clientWidth, h = container.clientHeight;
@@ -27,14 +36,20 @@ function onResize(): void {
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
   post.setSize(w, h);
+  debug?.resize(w, h);
 }
 window.addEventListener('resize', onResize);
 
-renderer.setAnimationLoop(() => {
+const timer = new THREE.Timer();
+renderer.setAnimationLoop((time) => {
+  timer.update(time);
+  const dt = Math.min(timer.getDelta(), 0.1);
+  debug?.update(dt, timer.getElapsed());
   controls.update();
   hud.beginFrame();
   post.composer.render();
   hud.endFrame();
+  debug?.afterRender();
 });
 
 if (import.meta.env.DEV) {

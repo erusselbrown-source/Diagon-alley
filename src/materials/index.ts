@@ -1,3 +1,7 @@
 export * from './noise';
-export * from './canvasTexture';
-export * from './materialFactory';
+export * from './texgen';
+export * from './library';
+export * from './uv';
+export * from './weathering';
+export { RECIPES, MATERIAL_IDS, PAINT_PALETTES, type MaterialId } from './recipes';
+export type { TextureRecipe, TexelOut, MaterialParams } from './recipes/types';

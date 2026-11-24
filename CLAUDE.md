@@ -7,12 +7,21 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 | Folder | Responsibility |
 |---|---|
 | `src/core/` | Scene, renderer, camera, post-processing, debug HUD, seeded random (`SeededRandom`) |
-| `src/materials/` | Procedural PBR texture & material factory (canvas + seeded noise) |
+| `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Reusable Tudor/Victorian kit: moldings, windows, timber, roofs, ironwork |
 | `src/shops/` | Bespoke hero buildings — one module per shop, registered in `shops/index.ts` |
 | `src/props/` | Instanced street clutter & shop displays |
 | `src/fx/` | Volumetric fog, particles, lanterns, magic effects (`FxSystem` interface) |
 | `src/audio/` | Procedural Web Audio soundscapes (`AudioEngine`) |
+
+### Materials
+
+- Load once, then fetch synchronously: `await library.load([...ids])` → `library.get('brick')` (shared, cached material — clone before per-mesh tweaks).
+- Each recipe outputs paired `map` (sRGB), `normalMap` (Sobel from height) and an ORM-packed `roughnessMap` (R = AO, G = roughness, B = metalness — wired to `roughnessMap`, `metalnessMap` and `aoMap`). Glass adds a `transmissionMap`.
+- Textures are authored v-up and uploaded with `flipY = false`. Every recipe must stay tileable: only use periodic noise (`Noise` with integer frequencies) and never raw `u`/`v` gradients.
+- Size UVs in metres with `projectWorldUVs` / `scaleUVsToWorld` using the recipe's `worldSize`, so texel density stays consistent.
+- Height-dependent weathering (soot, rising damp) goes in world space via `withBaseGrime`, not in the tiling texture.
+- Inspect with `?debug=materials` (temporary).
 
 All randomness goes through `SeededRandom` (use `rng.fork(label)` per subsystem) so the scene is deterministic.
 
