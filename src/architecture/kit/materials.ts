@@ -57,7 +57,7 @@ export class KitMaterials {
         prev.call(m, shader, r);
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <emissivemap_fragment>',
-          '#include <emissivemap_fragment>\n#ifdef USE_INSTANCING_COLOR\n  totalEmissiveRadiance *= vColor * diffuseColor.rgb * 2.0;\n#endif',
+          '#include <emissivemap_fragment>\n#ifdef USE_COLOR\n  totalEmissiveRadiance *= diffuseColor.rgb * 1.4;\n#else\n  totalEmissiveRadiance *= diffuseColor.rgb;\n#endif',
         );
       };
       const prevKey = m.customProgramCacheKey.bind(m);

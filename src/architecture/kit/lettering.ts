@@ -106,6 +106,7 @@ export function letteringMaterial(o: LetteringOptions): THREE.MeshStandardMateri
   const { map, orm } = makeLettering(o);
   const m = new THREE.MeshStandardMaterial({ map, roughnessMap: orm, metalnessMap: orm, roughness: 1, metalness: 1 });
   if (o.style === 'neon') { m.emissiveMap = map; m.emissive = new THREE.Color(1, 0.9, 0.75); m.emissiveIntensity = 0.8; }
+  else { m.emissiveMap = map; m.emissive = new THREE.Color(1, 0.85, 0.6); m.emissiveIntensity = o.style === 'gold' ? 0.18 : 0.1; } // lamp-lit sign-writing
   m.name = `lettering:${o.text}`;
   return m;
 }

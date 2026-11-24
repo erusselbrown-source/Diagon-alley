@@ -150,7 +150,7 @@ function showman(kit: Kit): { group: THREE.Group; animator: Animator } {
 
   // Rabbit, hidden under the hat
   const rabbit = new THREE.Group();
-  const glow = M.glow(0xfff2ff, 2.6), pink = M.glow(0xff6ad5, 3.2);
+  const glow = M.glow(0xfff2ff, 1.1), pink = M.glow(0xff6ad5, 1.6);
   add(new THREE.SphereGeometry(0.22, 16, 12).scale(1, 1.15, 0.9), glow, 0, 0.22, 0, rabbit);
   add(new THREE.SphereGeometry(0.16, 16, 12), glow, 0, 0.52, 0.04, rabbit);
   const ears: THREE.Mesh[] = [];
@@ -214,7 +214,7 @@ function showman(kit: Kit): { group: THREE.Group; animator: Animator } {
         rabbit.scale.setScalar(Math.max(0.001, r));
         rabbit.position.y = 5.2 + 0.05 * Math.sin(t * 9) * r;
         for (const [i, e] of ears.entries()) e.rotation.z = (i ? -1 : 1) * (0.15 + 0.2 * Math.sin(t * 7 + i)) * r;
-        rabbitLight.intensity = 14 * r;
+        rabbitLight.intensity = 6 * r;
         // idle life: gentle sway and head tilt
         head.rotation.z = 0.06 * Math.sin(t * 0.9) + 0.12 * k;
         g.rotation.y = 0.05 * Math.sin(t * 0.5);
