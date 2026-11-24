@@ -59,7 +59,8 @@ export function propKind(kit: Kit, kind: PropKind): string {
     skull: () => [merge(new THREE.SphereGeometry(0.08, 10, 8).scale(1, 0.95, 1.1).translate(0, 0.09, 0), new THREE.BoxGeometry(0.08, 0.05, 0.08).translate(0, 0.02, 0.03)), M.display('plaster', 0.3)],
   };
   const [g, m] = defs[kind]();
-  kit.instances.define(key, g, m, kind !== 'eye');
+  // Display stock lives inside shops: shadows there are invisible, so don't pay for them.
+  kit.instances.define(key, g, m, false);
   return key;
 }
 

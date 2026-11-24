@@ -137,11 +137,11 @@ export function createAmbientMagic(layout: StreetLayout, lanterns: readonly THRE
   for (const m of [body, wingL, wingR]) { m.frustumCulled = false; root.add(m); }
   const form = Array.from({ length: N_OWLS }, (_, i) => ({ o: new THREE.Vector3(rng.range(-6, 6), rng.range(-2, 2), -Math.abs(i - N_OWLS / 2) * 1.6 + rng.range(-1, 1)), ph: rng.range(0, 6.28) }));
   const mid = layout.frame(L * 0.55, createFrame());
-  const flockCentre = new THREE.Vector3(mid.x, mid.y + 34, mid.z);
+  const flockCentre = new THREE.Vector3(mid.x + mid.nx * 40, mid.y + 48, mid.z + mid.nz * 40);
 
   // ---- Per-frame update ----------------------------------------------------------------
   const P = new THREE.Vector3(), Q = new THREE.Vector3(), V = new THREE.Vector3(), M4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-  const up = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(0, 0, 1);
+  const fwd = new THREE.Vector3(0, 0, 1);
   return {
     object: root,
     setViewport(h, fov) { mu.uScale.value = h / (2 * Math.tan(THREE.MathUtils.degToRad(fov) / 2)); },
@@ -174,7 +174,7 @@ export function createAmbientMagic(layout: StreetLayout, lanterns: readonly THRE
         const pos = centre.clone().add(fo.o.clone().applyQuaternion(q)).add(new THREE.Vector3(0, Math.sin(t * 0.7 + fo.ph) * 0.6, 0));
         const flapEnv = Math.max(0, Math.sin(t * 0.35 + fo.ph)) ** 6;
         const flap = 0.12 + flapEnv * 0.7 * Math.sin(t * 7 + fo.ph);
-        const s = new THREE.Vector3(1.3, 1.3, 1.3);
+        const s = new THREE.Vector3(0.9, 0.9, 0.9);
         body.setMatrixAt(i, M4.compose(pos, q, s));
         const wl = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, -flap));
         const wr = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, flap));
@@ -182,7 +182,6 @@ export function createAmbientMagic(layout: StreetLayout, lanterns: readonly THRE
         wingR.setMatrixAt(i, M4.compose(pos, wr, s));
       });
       body.instanceMatrix.needsUpdate = wingL.instanceMatrix.needsUpdate = wingR.instanceMatrix.needsUpdate = true;
-      void up;
     },
     dispose() { /* scene-lifetime */ },
   };

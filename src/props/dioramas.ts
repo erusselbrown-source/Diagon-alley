@@ -37,20 +37,23 @@ function kinds(kit: Kit) {
   const M = kit.mats;
   const I = kit.instances;
   if (!I.has('dio:shelf')) {
-    I.define('dio:shelf', new THREE.BoxGeometry(1, 0.035, 0.3).toNonIndexed(), M.display('oak', 0.55));
-    I.define('dio:post', new THREE.BoxGeometry(0.05, 1, 0.3).toNonIndexed(), M.display('oak', 0.45));
+    I.define('dio:shelf', new THREE.BoxGeometry(1, 0.035, 0.3).toNonIndexed(), M.display('oak', 0.55), false);
+    I.define('dio:post', new THREE.BoxGeometry(0.05, 1, 0.3).toNonIndexed(), M.display('oak', 0.45), false);
     I.define('dio:lamp', mergeGeometries([
       normalizeForMerge(new THREE.SphereGeometry(0.07, 14, 10)),
       normalizeForMerge(new THREE.CylinderGeometry(0.006, 0.006, 0.4, 4).translate(0, 0.27, 0)),
       normalizeForMerge(new THREE.CylinderGeometry(0.03, 0.09, 0.06, 12, 1, true).translate(0, 0.08, 0)),
     ])!, M.glow(0xffb060, 2.4), false);
+    // Opaque-list additive (not `transparent`): transmissive shop glass samples only the
+    // opaque pass, so a transparent pool would vanish behind the panes. A late render
+    // order draws it after the interior it lights.
     const pool = M.memo('light-pool', () => new THREE.MeshBasicMaterial({
-      map: radialTexture(), color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: true,
+      map: radialTexture(), color: 0xffffff, transparent: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: true,
     }));
-    I.define('dio:pool', new THREE.PlaneGeometry(1, 1), pool, false);
-    I.define('dio:stand', lathe([[0, 0], [0.14, 0], [0.15, 0.03], [0.06, 0.08], [0.05, 0.3], [0.1, 0.34], [0.16, 0.36], [0, 0.36]], 16), M.display('oak', 0.5));
+    I.define('dio:pool', new THREE.PlaneGeometry(1, 1), pool, false, 10);
+    I.define('dio:stand', lathe([[0, 0], [0.14, 0], [0.15, 0.03], [0.06, 0.08], [0.05, 0.3], [0.1, 0.34], [0.16, 0.36], [0, 0.36]], 16), M.display('oak', 0.5), false);
     I.define('dio:flask', lathe([[0, 0], [0.02, 0], [0.07, 0.03], [0.09, 0.09], [0.07, 0.16], [0.025, 0.2], [0.02, 0.3], [0.03, 0.31], [0, 0.31]], 14),
-      M.displayFrom('flask-glass', M.memo('flask-base', () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.08 })), 1.6));
+      M.displayFrom('flask-glass', M.memo('flask-base', () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.08 })), 1.6), false);
   }
 }
 
@@ -79,7 +82,7 @@ function stockShelf(kit: Kit, a: THREE.Object3D, theme: DisplayTheme, x0: number
       case 'wands': {
         for (let k = rng.int(1, 4); k > 0; k--) {
           put(kit, P('wandbox'), a, x + 0.03 + rng.range(-0.012, 0.012), y + 0.03 + (k - 1) * 0.052, z + rng.range(-0.04, 0.04), { x: 1, y: 1, z: 1 },
-            C(0x6a5a48).lerp(rng.pick(BINDINGS), 0.5).multiplyScalar(rng.range(0.55, 0.9)), new THREE.Euler(0, Math.PI / 2 + rng.range(-0.1, 0.1), rng.range(-0.04, 0.04)));
+            C(0xc8b89a).lerp(rng.pick(BINDINGS), 0.35).multiplyScalar(rng.range(0.75, 1.1)), new THREE.Euler(0, Math.PI / 2 + rng.range(-0.1, 0.1), rng.range(-0.04, 0.04)));
         }
         x += 0.066;
         break;
@@ -185,12 +188,12 @@ function nimbus(kit: Kit): THREE.Group {
 
 function spotlightCone(height: number, radius: number): THREE.Mesh {
   const mat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    transparent: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
     fragmentShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ float edge = pow(abs(dot(vN, vV)), 1.5); float a = edge * (1.0 - vUv.y) * 0.22 + edge * 0.03; gl_FragColor = vec4(vec3(1.0, 0.86, 0.62) * a, a); }',
   });
   const m = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 28, 1, true).translate(0, -height / 2, 0), mat);
-  m.renderOrder = 7;
+  m.renderOrder = 10;
   return m;
 }
 
@@ -257,7 +260,7 @@ export function dressWindow(kit: Kit, d: PlacedDisplay, theme: DisplayTheme, rng
         oz += rng.range(-0.006, 0.006);
         yaw += rng.range(-0.25, 0.25);
         put(kit, propKind(kit, 'wandbox'), a, ox, 0.025 + k * 0.051, oz, { x: 1, y: 1, z: 1 },
-          C(0x7a6a58).lerp(rng.pick(BINDINGS), 0.4).multiplyScalar(rng.range(0.55, 0.85)), new THREE.Euler(rng.range(-0.02, 0.02), yaw, tilt));
+          C(0xc0ae90).lerp(rng.pick(BINDINGS), 0.35).multiplyScalar(rng.range(0.7, 1.05)), new THREE.Euler(rng.range(-0.02, 0.02), yaw, tilt));
       }
     }
   }

@@ -2,7 +2,7 @@
  * Street-wide instance collector. Builders register repeated elements
  * (slates, chimney pots, books, jars, bulbs…) relative to an anchor Object3D —
  * typically a leaning storey group — and `finalize()` bakes them into one
- * InstancedMesh per (kind × 24 m spatial cell), so leaning/jettied buildings
+ * InstancedMesh per (kind × 48 m spatial cell), so leaning/jettied buildings
  * still share draw calls while keeping frustum culling (CLAUDE.md rule 3).
  */
 import * as THREE from 'three';
@@ -11,17 +11,18 @@ interface Kind {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
   castShadow: boolean;
+  renderOrder: number;
   entries: { anchor: THREE.Object3D; local: THREE.Matrix4; color?: THREE.Color }[];
 }
 
-const CELL = 24;
+const CELL = 48;
 
 export class InstanceCollector {
   private readonly kinds = new Map<string, Kind>();
 
   /** Declare a kind once (idempotent). */
-  define(key: string, geometry: THREE.BufferGeometry, material: THREE.Material, castShadow = true): this {
-    if (!this.kinds.has(key)) this.kinds.set(key, { geometry, material, castShadow, entries: [] });
+  define(key: string, geometry: THREE.BufferGeometry, material: THREE.Material, castShadow = true, renderOrder = 0): this {
+    if (!this.kinds.has(key)) this.kinds.set(key, { geometry, material, castShadow, renderOrder, entries: [] });
     return this;
   }
 
@@ -75,6 +76,7 @@ export class InstanceCollector {
         mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(c.cols), 3);
         mesh.castShadow = k.castShadow;
         mesh.receiveShadow = true;
+        mesh.renderOrder = k.renderOrder;
         mesh.name = `${key}@${ck}`;
         mesh.computeBoundingSphere();
         out.add(mesh);

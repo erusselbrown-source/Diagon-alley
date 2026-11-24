@@ -48,6 +48,19 @@ export interface Shopfront {
 
 const PIL = 0.28, PIER = 0.16;
 
+/** Clear, slightly wavy plate glass for display windows (leaded grime would hide the stock). */
+export function shopGlass(kit: Kit): THREE.Material {
+  return kit.mats.memo('shop-glass', () => {
+    const base = kit.mats.get('glass');
+    const g = new THREE.MeshPhysicalMaterial({
+      color: 0xf4f8f2, roughness: 0.03, metalness: 0, transmission: 1, thickness: 0.006, ior: 1.52,
+      normalMap: base.normalMap, normalScale: new THREE.Vector2(0.12, 0.12), envMapIntensity: 1.2, side: THREE.DoubleSide,
+    });
+    g.name = 'glass-shop';
+    return g;
+  });
+}
+
 export function planShopfront(kit: Kit, width: number, spec: ShopfrontSpec): Shopfront {
   const M = kit.mats;
   const paint = typeof spec.paint === 'string' ? M.get(spec.paint) : spec.paint;
@@ -85,7 +98,7 @@ export function planShopfront(kit: Kit, width: number, spec: ShopfrontSpec): Sho
     } else {
       const sill = floor + 0.5;
       const common = {
-        width: w, height: winTop - sill, sill, frame: paint, muntin: spec.muntin ?? paint, glass: M.get('glass'),
+        width: w, height: winTop - sill, sill, frame: paint, muntin: spec.muntin ?? paint, glass: shopGlass(kit),
         stone: M.get('sandstone'), interior,
       };
       const bay = it.kind === 'bay'
