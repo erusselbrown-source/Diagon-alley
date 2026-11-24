@@ -203,8 +203,8 @@ export function buildDragon(kit: Kit): Dragon {
       // Ember glow in the nostrils every 15 s
       const e = t % 15;
       const pulse = e < 3 ? Math.pow(Math.sin((Math.PI * e) / 3), 2) : 0;
-      nostrilMat.emissiveIntensity = 0.15 + 7 * pulse;
-      ember.intensity = 9 * pulse;
+      nostrilMat.emissiveIntensity = 0.15 + 3 * pulse;
+      ember.intensity = 5 * pulse;
     },
   };
 }

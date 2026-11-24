@@ -53,7 +53,7 @@ function flutedShaft(r0: number, h: number): THREE.BufferGeometry {
       const d = Math.pow(Math.abs(Math.sin(a * 12)), 0.7);
       const r = R * (1 - 0.055 * d * fade);
       pos.push(Math.cos(a) * r, y, Math.sin(a) * r);
-      uv.push((i / RS) * (2 * Math.PI * r0), y);
+      uv.push(((i / RS) * (2 * Math.PI * r0)) / 3.2, y / 3.2);
     }
   }
   for (let j = 0; j < HS; j++) for (let i = 0; i < RS; i++) {
@@ -214,7 +214,7 @@ export const GRINGOTTS: ShopModule = {
     group.name = 'gringotts';
     const animators: Animator[] = [];
     const b = new GeometryBucket();
-    const ws = M.worldSize('marble');
+    const ws = 3.2; // marble tiled at monumental scale (veins would read as wallpaper at 1 m)
 
     // ---- Stairs, stylobate, balustrades ---------------------------------------
     for (let i = 0; i < STEPS; i++) {
@@ -344,7 +344,7 @@ export const GRINGOTTS: ShopModule = {
     const FL = new THREE.Vector3(-4.45, 0, FACADE_Z), FR = new THREE.Vector3(4.45, 0, FACADE_Z);
     const BL = edges.left[2].clone().setY(0), BR = edges.right[2].clone().setY(0);
     const bodyH = ENT_TOP;
-    const wallMats = { wall: marble, stone: marble, timber: bronze, glass: M.memo('gringotts-glass', () => { const g = M.get('glass').clone(); g.emissive = new THREE.Color(1, 0.72, 0.4); g.emissiveIntensity = 0.35; return g; }), door: bronze, iron: M.get('iron') };
+    const wallMats = { wall: marble, stone: marble, timber: M.get('paint-charcoal'), glass: M.memo('gringotts-glass', () => { const g = M.get('glass').clone(); g.emissive = new THREE.Color(1, 0.72, 0.4); g.emissiveIntensity = 0.35; return g; }), door: bronze, iron: M.get('iron') };
     const placeWall = (a: THREE.Vector3, c: THREE.Vector3, y0: number, opts: Parameters<typeof buildWall>[0]) => {
       const w = buildWall(opts);
       const dir = c.clone().sub(a).setY(0).normalize();
@@ -374,7 +374,8 @@ export const GRINGOTTS: ShopModule = {
     placeWall(FR, BR, -0.6, { name: 'gringotts-flank-r', length: lenR, height: bodyH + 0.6, thickness: 0.9, wallWorldSize: ws, top: 'cornice', materials: wallMats, openings: flankOpenings(lenR).map((o) => ({ ...o, y: o.y + 0.6 })) });
     placeWall(BR, BL, -0.6, { name: 'gringotts-back', length: BR.distanceTo(BL), height: bodyH + 0.6, thickness: 0.9, wallWorldSize: ws, top: 'cornice', materials: wallMats, openings: [] });
     // roof deck
-    const deck = new THREE.Shape([new THREE.Vector2(FL.x, -FL.z), new THREE.Vector2(FR.x, -FR.z), new THREE.Vector2(BR.x, -BR.z), new THREE.Vector2(BL.x, -BL.z)]);
+    // rotateX(+90°) maps shape Y → +Z, so author the plan as (x, z) directly.
+    const deck = new THREE.Shape([new THREE.Vector2(FL.x, FL.z), new THREE.Vector2(FR.x, FR.z), new THREE.Vector2(BR.x, BR.z), new THREE.Vector2(BL.x, BL.z)]);
     const dg = new THREE.ExtrudeGeometry(deck, { depth: 0.35, bevelEnabled: false });
     dg.rotateX(Math.PI / 2);
     b.add(M.tinted('iron', 0x9aa0a6, 'lead'), dg, new THREE.Matrix4().makeTranslation(0, bodyH, 0));
