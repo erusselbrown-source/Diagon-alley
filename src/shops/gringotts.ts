@@ -15,7 +15,7 @@
  * lanes' inner edges.
  */
 import * as THREE from 'three';
-import { GeometryBucket, PROFILES, buildWall, chamferBox, extrudeProfile, letteringMaterial, mergeStatic, type Animator, type Kit } from '../architecture/kit';
+import { GeometryBucket, PROFILES, buildWall, chamferBox, extrudeProfile, letteringMaterial, mergeStatic, scaleUVs, type Animator, type Kit } from '../architecture/kit';
 import { STREET, createFrame } from '../architecture/street';
 import { heightToNormal } from '../materials/texgen';
 import { SeededRandom } from '../core/random';
@@ -316,7 +316,7 @@ export const GRINGOTTS: ShopModule = {
     // ---- Pediment (stepped), roundel, acroteria, attic ---------------------------
     const pedZ = COL_Z + 0.3;
     const tri = new THREE.Shape([new THREE.Vector2(-PED_HALF + 0.4, 0), new THREE.Vector2(PED_HALF - 0.4, 0), new THREE.Vector2(0, PED_H - 0.3)]);
-    const tg = new THREE.ExtrudeGeometry(tri, { depth: 0.5, bevelEnabled: false });
+    const tg = scaleUVs(new THREE.ExtrudeGeometry(tri, { depth: 0.5, bevelEnabled: false }), 1 / ws);
     b.add(marble, tg, new THREE.Matrix4().makeTranslation(0, ENT_TOP, pedZ - 0.5));
     const rakeLen = Math.hypot(PED_HALF, PED_H), rakeA = Math.atan2(PED_H, PED_HALF);
     for (const sx of [-1, 1]) {
