@@ -188,9 +188,11 @@ export function mergeStatic(root: THREE.Object3D, name = 'static'): THREE.Group 
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
   const victims: THREE.Mesh[] = [];
-  root.traverse((o) => {
+  const visit = (o: THREE.Object3D) => {
+    if (o.userData.keep) return; // whole subtree stays dynamic (signs, animated parts)
+    for (const c of o.children) visit(c);
     const m = o as THREE.Mesh;
-    if (!m.isMesh || (m as unknown as THREE.InstancedMesh).isInstancedMesh || o.userData.keep || Array.isArray(m.material)) return;
+    if (!m.isMesh || (m as unknown as THREE.InstancedMesh).isInstancedMesh || Array.isArray(m.material)) return;
     if ((m.material as THREE.Material).transparent) return;
     const g = normalizeForMerge(m.geometry.clone());
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
@@ -198,7 +200,8 @@ export function mergeStatic(root: THREE.Object3D, name = 'static'): THREE.Group 
     if (!list) buckets.set(m.material as THREE.Material, (list = []));
     list.push(g);
     victims.push(m);
-  });
+  };
+  visit(root);
   for (const v of victims) v.removeFromParent();
   const out = new THREE.Group();
   out.name = name;
@@ -211,5 +214,53 @@ export function mergeStatic(root: THREE.Object3D, name = 'static'): THREE.Group 
     out.add(mesh);
   }
   root.add(out);
+  return out;
+}
+
+const NO_SHADOW = /^(interior|lettering|glass|puddle)/;
+
+/**
+ * Street-wide batching: bake every static mesh under `root` into world space
+ * and merge per (material × cell), cutting draw calls across neighbouring
+ * buildings while keeping coarse frustum culling. Dynamic subtrees
+ * (`userData.keep`) and InstancedMeshes are untouched. Interiors, glass and
+ * lettering are set not to cast shadows.
+ */
+export function mergeByCell(root: THREE.Object3D, cell = 24, name = 'batched'): THREE.Group {
+  root.updateMatrixWorld(true);
+  const buckets = new Map<string, { mat: THREE.Material; geos: THREE.BufferGeometry[] }>();
+  const victims: THREE.Mesh[] = [];
+  const box = new THREE.Box3(), c = new THREE.Vector3();
+  const visit = (o: THREE.Object3D) => {
+    if (o.userData.keep) return;
+    for (const ch of o.children) visit(ch);
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || (m as unknown as THREE.InstancedMesh).isInstancedMesh || Array.isArray(m.material)) return;
+    const mat = m.material as THREE.Material;
+    if (mat.transparent) return;
+    if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+    box.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld).getCenter(c);
+    const key = `${mat.uuid}|${Math.floor(c.x / cell)},${Math.floor(c.z / cell)}`;
+    let bk = buckets.get(key);
+    if (!bk) buckets.set(key, (bk = { mat, geos: [] }));
+    const g = normalizeForMerge(m.geometry.clone());
+    g.applyMatrix4(m.matrixWorld);
+    bk.geos.push(g);
+    victims.push(m);
+  };
+  visit(root);
+  for (const v of victims) v.removeFromParent();
+  const out = new THREE.Group();
+  out.name = name;
+  for (const [key, bk] of buckets) {
+    const merged = mergeGeometries(bk.geos, false);
+    if (!merged) continue;
+    merged.computeBoundingSphere();
+    const mesh = new THREE.Mesh(merged, bk.mat);
+    mesh.castShadow = !NO_SHADOW.test(bk.mat.name);
+    mesh.receiveShadow = true;
+    mesh.name = `${name}:${bk.mat.name}@${key.split('|')[1]}`;
+    out.add(mesh);
+  }
   return out;
 }

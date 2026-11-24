@@ -23,6 +23,8 @@ import { buildWall } from './kit/wall';
 import { createFrame, type StreetLayout } from './street';
 
 export const ARCH_DURATION = 3.5;
+/** Render layer used by the courtyard lantern's shadow camera. */
+export const COURTYARD_LAYER = 2;
 
 // Brick block (pitch includes the 10 mm joint)
 const BL = 0.225, BH = 0.075, BD = 0.3;
@@ -373,6 +375,10 @@ export function buildEntryArchway(layout: StreetLayout, lib: MaterialLibrary): E
   group.add(lampFill);
 
   mergeStatic(group, 'courtyard-static');
+  // The lantern only lights the courtyard: give its shadow camera a private
+  // layer so it doesn't re-render every shop on the street.
+  group.traverse((o) => o.layers.enable(COURTYARD_LAYER));
+  lampLight.shadow.camera.layers.set(COURTYARD_LAYER);
 
   // ======================================================================
   // 3. Animation state

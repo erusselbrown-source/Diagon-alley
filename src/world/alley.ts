@@ -12,6 +12,10 @@ import { buildStreetSurface } from '../architecture/streetSurface';
 import { buildEntryArchway, type EntryArchway } from '../architecture/entryArchway';
 import { buildSideAlleys } from '../architecture/sideAlleys';
 import { buildStoops } from '../architecture/stoops';
+import { Kit } from '../architecture/kit';
+import { buildShops, planStreet } from '../shops/plan';
+import { HERO_PLACEMENTS } from '../shops/heroes';
+import { createChimneySmoke } from '../fx/chimneySmoke';
 
 export interface AlleyContext {
   renderer: THREE.WebGLRenderer;
@@ -25,9 +29,17 @@ export interface AlleyWorld {
   update(dt: number, elapsed: number): void;
   stats: Record<string, number>;
   archway: EntryArchway;
+  /** Dev aid: when set, animators see this fixed time instead of the clock. */
+  debugTime: number | null;
 }
 
-const MATERIALS: MaterialId[] = ['granite', 'grit', 'sandstone', 'brick', 'iron', 'oak', 'plaster', 'glass', 'paint-oxblood', 'paint-charcoal'];
+const MATERIALS: MaterialId[] = [
+  'granite', 'grit', 'sandstone', 'brick', 'iron', 'oak', 'plaster', 'glass', 'brass', 'slate', 'slate-tile', 'copper', 'leather', 'velvet',
+  'paint-oxblood', 'paint-charcoal', 'paint-indigo', 'paint-emerald', 'paint-ochre', 'paint-weasley', 'paint-magenta',
+  'paint-violet', 'paint-teal', 'paint-mustard', 'paint-plum', 'paint-cream',
+];
+
+const tmpSize = new THREE.Vector2();
 
 export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   const { renderer, scene, gui } = ctx;
@@ -57,8 +69,22 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   // ---- Knockturn mouth, alcoves, stoops -----------------------------------------
   const side = buildSideAlleys(STREET, lib);
   scene.add(side.group);
+
+  // ---- Shops: heroes + procedural fillers along both sides ------------------------
+  overlay.set('Raising the shops…');
+  await new Promise((r) => setTimeout(r, 0));
+  const kit = new Kit(lib);
+  const placements = planStreet(STREET, HERO_PLACEMENTS);
+  const shops = buildShops(kit, STREET, placements);
+  scene.add(shops.group);
+  STREET.stoops.splice(0, STREET.stoops.length, ...shops.stoops);
   scene.add(buildStoops(STREET, lib));
-  stats.stoops = STREET.stoops.length;
+  scene.add(kit.instances.finalize(scene));
+  const animators = [...shops.animators, ...kit.animators];
+  const smoke = createChimneySmoke(kit.smoke.map((e) => e.anchor.localToWorld(e.local.clone())));
+  scene.add(smoke.object);
+  Object.assign(stats, shops.stats, { stoops: STREET.stoops.length, smokeEmitters: kit.smoke.length });
+  console.info('[alley] shops', shops.names.map((n) => `${n.side[0]} ${n.s0.toFixed(1)}+${n.frontage.toFixed(1)} ${n.name}`).join(' | '));
 
   // ---- Temporary street glow (stand-ins until fx/lanterns) -------------------
   const glow = addStreetGlow(scene);
@@ -74,15 +100,21 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
 
   folder.add({ toggleArch: () => archway.trigger() }, 'toggleArch').name('open / close archway');
 
-  return {
+  const world: AlleyWorld = {
     stats,
     archway,
-    update(dt, elapsed) {
+    debugTime: null,
+    update(dt, clock) {
+      const elapsed = world.debugTime ?? clock;
       surface.update(elapsed);
+      for (const a of animators) a.update(dt, elapsed);
+      smoke.setViewport(renderer.getDrawingBufferSize(tmpSize).y, ctx.camera.fov);
+      smoke.update(dt, elapsed);
       archway.update(dt);
       hint.update();
     },
   };
+  return world;
 }
 
 /** Click the wall (or press E nearby) to open/close the archway. */

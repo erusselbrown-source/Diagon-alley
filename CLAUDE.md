@@ -9,8 +9,8 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 | `src/core/` | Scene, renderer, camera, post-processing, debug HUD, seeded random (`SeededRandom`) |
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
-| `src/shops/` | Bespoke hero buildings — one module per shop, registered in `shops/index.ts` |
-| `src/props/` | Instanced street clutter & shop displays |
+| `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
+| `src/props/` | Instanced shop displays & clutter (`displays.ts`: prop kinds, `fillDisplay` themes, book towers, trunks) |
 | `src/fx/` | Volumetric fog, particles, lanterns, magic effects (`FxSystem` interface) |
 | `src/audio/` | Procedural Web Audio soundscapes (`AudioEngine`) |
 | `src/world/` | Scene assembly (`alley.ts`): loads materials, builds street + features, interaction |
@@ -29,8 +29,17 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - `src/architecture/street.ts` is the single source of truth: `STREET` (a `StreetLayout`) owns the ~95 m S-curve, width profile (8.5 → 7 → 14 m), camber, puddle dips, reservations, stoop sites, lanes (Y-branches, Knockturn) and the Gringotts site.
 - `t` is arc-length normalised; `side` is relative to walking from the archway (t = 0) toward Gringotts (t = 1).
 - Place shops with `getStreetTransform(t, side, offset)` or, for a frontage span, `STREET.frontageTransform(side, s0, frontage)` (chord-aligned so the bounding box sits flush). Local origin = building line at ground level, +Z into the street, +X to the viewer's right.
-- Check `STREET.isFrontageFree(side, s0, s1)` before placing — alcoves, Knockturn's mouth, the courtyard and Gringotts are reserved. Put shop doors at `STREET.stoops`.
+- Check `STREET.isFrontageFree(side, s0, s1)` before placing — alcoves, Knockturn's mouth, the courtyard and Gringotts are reserved.
+- Stoops follow doors: `shops/plan.ts` turns every shop door into a `STREET.stoops` site, so a shop's floor height (`floor`, multiples of 0.16 m) sets its step count.
 - Courtyard archway: `ARCH_DURATION` = 3.5 s; click the wall or press E within 9 m.
+
+### Building kit (`src/architecture/kit.ts`)
+
+- Everything takes one `Kit` (materials cache, `InstanceCollector`, smoke emitters, animators). Use `kit.useRng(label)` per building for deterministic variety.
+- Compose buildings as `planShopfront` (ground-floor openings) → `buildTownhouse` (jettied, leaning storeys + roof) → `sf.build(storeys[0])` → extras → `mergeStatic(house.group)`.
+- Repeated small things (slates, chimney pots, books, jars, bulbs…) go through `kit.instances` relative to an anchor (usually a storey group) so they follow the lean and still batch street-wide; prop kinds live in `props/displays.ts`.
+- Anything animated (signs, the Wheezes showman) must sit under an Object3D with `userData.keep = true` so `mergeStatic` / `mergeByCell` leave it dynamic, and expose an `Animator`.
+- `plan.ts` batches all static shop geometry with `mergeByCell` (per material × 48 m cell); interiors, glass and lettering don't cast shadows.
 
 All randomness goes through `SeededRandom` (use `rng.fork(label)` per subsystem) so the scene is deterministic.
 

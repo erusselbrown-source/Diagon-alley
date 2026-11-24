@@ -155,6 +155,7 @@ export class StreetLayout {
   readonly dips: Dip[] = [];
   readonly reservations: Reservation[] = [];
   readonly alcoves: AlcoveSite[] = [];
+  /** Stoop sites — filled from shop doors by shops/plan.ts. */
   readonly stoops: StoopSite[] = [];
   readonly lanes: LaneSpec[] = [];
   readonly knockturn: { s: number; side: Side; lane: LaneSpec; gateS: number; mouthWidth: number };
@@ -182,7 +183,7 @@ export class StreetLayout {
     // ---- Knockturn Alley: branches off the left side halfway down -----------
     const ks = this.length * 0.5;
     const mouthWidth = 2.6;
-    this.reservations.push({ kind: 'knockturn', side: 'left', s0: ks - 2.1, s1: ks + 2.1 });
+    this.reservations.push({ kind: 'knockturn', side: 'left', s0: ks - 1.95, s1: ks + 1.95 });
     const kf = this.sampler.frame(ks);
     const W = streetWidthAt(0.5);
     const a = THREE.MathUtils.degToRad(25);
@@ -240,17 +241,6 @@ export class StreetLayout {
     }
     this.dips.sort((p, q) => p.s - q.s);
 
-    // ---- Crooked stoops ----------------------------------------------------------
-    let s = 6;
-    let n = 0;
-    while (s < this.plazaS - 3) {
-      const side: Side = rng.chance(0.5) ? 'left' : 'right';
-      const width = rng.range(1.1, 1.7);
-      if (this.isFrontageFree(side, s - width / 2 - 0.5, s + width / 2 + 0.5)) {
-        this.stoops.push({ s, side, width, steps: rng.int(1, 3), seed: n++ });
-      }
-      s += rng.range(5.5, 9.5);
-    }
   }
 
   tAt(s: number): number { return s / this.length; }

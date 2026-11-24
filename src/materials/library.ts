@@ -178,6 +178,9 @@ export class MaterialLibrary {
         thickness: p.thickness ?? 0,
         transmission: p.transmission ? 1 : 0,
         transmissionMap: maps.transmissionMap ?? null,
+        sheen: p.sheen ?? 0,
+        sheenRoughness: p.sheenRoughness ?? 0.5,
+        sheenColor: p.sheenColor ? new THREE.Color(...p.sheenColor) : new THREE.Color(0, 0, 0),
       });
     } else {
       mat = new THREE.MeshStandardMaterial(common);

@@ -37,6 +37,9 @@ export interface MaterialParams {
   clearcoatRoughness?: number;
   doubleSided?: boolean;
   aoIntensity?: number;
+  sheen?: number;
+  sheenColor?: [number, number, number];
+  sheenRoughness?: number;
 }
 
 export interface TextureRecipe {

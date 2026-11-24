@@ -1,27 +1,30 @@
 /**
- * Bespoke hero buildings. Each shop lives in its own module (e.g.
- * shops/wandShop.ts) and default-exports a ShopModule.
+ * Bespoke hero buildings and procedural fillers. Each shop lives in its own
+ * module (e.g. shops/ollivanders.ts) and exports a ShopModule.
  *
- * Placement: build in local space, then snap with
- * `STREET.frontageTransform(side, s0, frontage)` (or `getStreetTransform`) from
- * architecture/street.ts, after checking `STREET.isFrontageFree(...)`.
+ * Contract (CLAUDE.md rule 4): `build()` returns a group in LOCAL space with
+ * the origin at front-centre, pavement level, +Z facing the street, the
+ * facade spanning x ∈ [−frontage/2, frontage/2]. Placement is done by
+ * shops/plan.ts with `STREET.frontageTransform(side, s0, frontage)`.
  */
 import type * as THREE from 'three';
-import type { SeededRandom } from '../core/random';
+import type { Animator, Kit, PlacedDoor } from '../architecture/kit';
 
 export interface ShopContext {
-  rng: SeededRandom;
+  kit: Kit;
+}
+
+export interface ShopBuild {
+  group: THREE.Group;
+  doors: PlacedDoor[];
+  animators?: Animator[];
 }
 
 export interface ShopModule {
   id: string;
-  /** Street frontage width (metres) along the spline. */
+  name: string;
+  /** Street frontage (m) — equals the facade's X extent. */
   frontage: number;
-  /** Builds the shop in local space: origin at front-centre ground, +Z = street. */
-  build(ctx: ShopContext): THREE.Group;
-  /** Optional per-frame animation (signs, window displays). */
-  update?(dt: number, elapsed: number): void;
+  depth?: number;
+  build(ctx: ShopContext): ShopBuild;
 }
-
-/** Registry; shops are appended here as they're implemented. */
-export const shopRegistry: ShopModule[] = [];

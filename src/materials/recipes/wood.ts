@@ -81,6 +81,12 @@ export const PAINT_PALETTES = [
   { id: 'ochre', label: 'Faded ochre', top: [0.72, 0.56, 0.27], under: [0.33, 0.40, 0.31], gloss: 0.5 },
   { id: 'charcoal', label: 'Charcoal slate', top: [0.19, 0.21, 0.23], under: [0.62, 0.26, 0.17], gloss: 0.38 },
   { id: 'weasley', label: 'Weasley orange / violet', top: [0.94, 0.40, 0.07], under: [0.42, 0.16, 0.56], gloss: 0.3 },
+  { id: 'magenta', label: 'Shocking magenta', top: [0.72, 0.06, 0.42], under: [0.95, 0.75, 0.2], gloss: 0.28 },
+  { id: 'violet', label: 'Royal violet', top: [0.3, 0.1, 0.5], under: [0.9, 0.45, 0.1], gloss: 0.3 },
+  { id: 'teal', label: 'Apothecary teal', top: [0.06, 0.32, 0.33], under: [0.8, 0.74, 0.6], gloss: 0.36 },
+  { id: 'mustard', label: 'Mustard yellow', top: [0.78, 0.6, 0.15], under: [0.22, 0.3, 0.24], gloss: 0.42 },
+  { id: 'plum', label: 'Damson plum', top: [0.32, 0.1, 0.2], under: [0.7, 0.66, 0.6], gloss: 0.36 },
+  { id: 'cream', label: 'Parlour cream', top: [0.86, 0.8, 0.66], under: [0.45, 0.5, 0.42], gloss: 0.4 },
 ] as const satisfies readonly PaintPalette[];
 
 export type PaintId = `paint-${(typeof PAINT_PALETTES)[number]['id']}`;
@@ -94,7 +100,7 @@ export function paintedWood(p: PaintPalette): TextureRecipe {
   return {
     id: `paint-${p.id}`,
     label: `Painted wood — ${p.label}`,
-    size: 1024,
+    size: 512,
     worldSize: 0.9,
     depth: 0.006 / 0.9,
     ao: { radius: 0.004, strength: 3 },
