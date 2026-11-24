@@ -4,3 +4,5 @@ export * from './camera';
 export * from './scene';
 export * from './postprocessing';
 export * from './debugHud';
+export * from './environment';
+export * from './loadingOverlay';

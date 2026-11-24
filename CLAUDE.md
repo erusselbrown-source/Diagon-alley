@@ -8,11 +8,12 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 |---|---|
 | `src/core/` | Scene, renderer, camera, post-processing, debug HUD, seeded random (`SeededRandom`) |
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
-| `src/architecture/` | Reusable Tudor/Victorian kit: moldings, windows, timber, roofs, ironwork |
+| `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
 | `src/shops/` | Bespoke hero buildings — one module per shop, registered in `shops/index.ts` |
 | `src/props/` | Instanced street clutter & shop displays |
 | `src/fx/` | Volumetric fog, particles, lanterns, magic effects (`FxSystem` interface) |
 | `src/audio/` | Procedural Web Audio soundscapes (`AudioEngine`) |
+| `src/world/` | Scene assembly (`alley.ts`): loads materials, builds street + features, interaction |
 
 ### Materials
 
@@ -22,6 +23,14 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - Size UVs in metres with `projectWorldUVs` / `scaleUVsToWorld` using the recipe's `worldSize`, so texel density stays consistent.
 - Height-dependent weathering (soot, rising damp) goes in world space via `withBaseGrime`, not in the tiling texture.
 - Inspect with `?debug=materials` (temporary).
+
+### Street layout
+
+- `src/architecture/street.ts` is the single source of truth: `STREET` (a `StreetLayout`) owns the ~95 m S-curve, width profile (8.5 → 7 → 14 m), camber, puddle dips, reservations, stoop sites, lanes (Y-branches, Knockturn) and the Gringotts site.
+- `t` is arc-length normalised; `side` is relative to walking from the archway (t = 0) toward Gringotts (t = 1).
+- Place shops with `getStreetTransform(t, side, offset)` or, for a frontage span, `STREET.frontageTransform(side, s0, frontage)` (chord-aligned so the bounding box sits flush). Local origin = building line at ground level, +Z into the street, +X to the viewer's right.
+- Check `STREET.isFrontageFree(side, s0, s1)` before placing — alcoves, Knockturn's mouth, the courtyard and Gringotts are reserved. Put shop doors at `STREET.stoops`.
+- Courtyard archway: `ARCH_DURATION` = 3.5 s; click the wall or press E within 9 m.
 
 All randomness goes through `SeededRandom` (use `rng.fork(label)` per subsystem) so the scene is deterministic.
 

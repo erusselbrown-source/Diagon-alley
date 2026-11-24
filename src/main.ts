@@ -5,6 +5,8 @@ import {
   createPostProcessing, DebugHud,
 } from './core';
 import type { DebugHandle } from './debug/materialsDebug';
+import { buildAlley, type AlleyWorld } from './world/alley';
+import { STREET } from './architecture/street';
 
 const params = new URLSearchParams(location.search);
 const container = document.getElementById('app')!;
@@ -25,9 +27,13 @@ if (params.get('debug') === 'materials') {
   // Temporary inspection mode — loaded lazily so it never ships in the main path.
   const { runMaterialsDebug } = await import('./debug/materialsDebug');
   debug = await runMaterialsDebug({ container, renderer, scene, camera, controls, post, sun, gui });
-} else {
-  scene.add(createPlaceholderGround());
+}
+
+let alley: AlleyWorld | null = null;
+if (!debug) {
+  if (params.has('grid')) scene.add(createPlaceholderGround());
   gui.add(scene.fog as THREE.FogExp2, 'density', 0, 0.1, 0.001).name('fog');
+  alley = await buildAlley({ renderer, scene, camera, controls, gui });
 }
 
 function onResize(): void {
@@ -45,6 +51,7 @@ renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.1);
   debug?.update(dt, timer.getElapsed());
+  alley?.update(dt, timer.getElapsed());
   controls.update();
   hud.beginFrame();
   post.composer.render();
@@ -53,5 +60,5 @@ renderer.setAnimationLoop((time) => {
 });
 
 if (import.meta.env.DEV) {
-  Object.assign(window, { __dbg: { THREE, scene, camera, renderer, post, controls } });
+  Object.assign(window, { __dbg: { THREE, scene, camera, renderer, post, controls, STREET, get alley() { return alley; } } });
 }
