@@ -40,7 +40,10 @@ export function planStreet(layout: StreetLayout, heroes: Placement[], seed = 'di
 
     for (const [a, b] of free) {
       const len = b - a;
-      if (len < 2.2) continue;
+      if (len < 2.2) {
+        if (len > 0.05) console.warn(`[plan] ${side} frontage ${a.toFixed(2)}–${b.toFixed(2)} is too narrow for a filler; move a hero slot`);
+        continue;
+      }
       const n = Math.max(1, Math.round(len / 6.3));
       const raw = Array.from({ length: n }, () => rng.range(0.8, 1.2));
       const sum = raw.reduce((p, q) => p + q, 0);
