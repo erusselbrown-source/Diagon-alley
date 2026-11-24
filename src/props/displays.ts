@@ -177,8 +177,9 @@ export function trunkStack(kit: Kit, anchor: THREE.Object3D, x: number, y: numbe
     const s = scale * rng.range(0.75, 1.0) * (1 - i * 0.12);
     const rot = new THREE.Euler(0, rng.range(-0.35, 0.35), rng.range(-0.02, 0.02));
     const col = rng.pick([C(0x6a3a1a), C(0x3a2a1a), C(0x5a1a1a), C(0x2a3a2a), C(0x7a5a2a)]);
-    kit.instances.put(propKind(kit, 'trunk'), anchor, { x: x + rng.range(-0.05, 0.05), y: yy, z: z + rng.range(-0.04, 0.04) }, rot, { x: s, y: s, z: s }, col);
-    kit.instances.put(propKind(kit, 'trunk-band'), anchor, { x: x + 0, y: yy, z }, rot, { x: s, y: s, z: s }, C(0xd8b060));
+    const at = { x: x + rng.range(-0.05, 0.05), y: yy, z: z + rng.range(-0.04, 0.04) };
+    kit.instances.put(propKind(kit, 'trunk'), anchor, at, rot, { x: s, y: s, z: s }, col);
+    kit.instances.put(propKind(kit, 'trunk-band'), anchor, at, rot, { x: s, y: s, z: s }, C(0xd8b060));
     yy += 0.5 * s;
   }
 }

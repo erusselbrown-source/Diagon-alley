@@ -68,6 +68,25 @@ export function scaleUVs(g: THREE.BufferGeometry, k: number): THREE.BufferGeomet
   return g;
 }
 
+/**
+ * Replace zero-length / non-finite normals with a safe unit vector. Degenerate
+ * (zero-area) triangles — e.g. from shapes closed by repeating their first
+ * point — get zero normals from computeVertexNormals, and normalize(0) in a
+ * fragment shader is NaN, which bloom then smears across the whole frame.
+ */
+export function sanitizeNormals(g: THREE.BufferGeometry): number {
+  const n = g.getAttribute('normal') as THREE.BufferAttribute | undefined;
+  if (!n) return 0;
+  let fixed = 0;
+  for (let i = 0; i < n.count; i++) {
+    const x = n.getX(i), y = n.getY(i), z = n.getZ(i);
+    const l = x * x + y * y + z * z;
+    if (!(l > 1e-10) || !Number.isFinite(l)) { n.setXYZ(i, 0, 1, 0); fixed++; }
+  }
+  if (fixed) n.needsUpdate = true;
+  return fixed;
+}
+
 /** Non-indexed, position/normal/uv only, no groups — safe for mergeGeometries. */
 export function normalizeForMerge(g: THREE.BufferGeometry): THREE.BufferGeometry {
   const out = g.index ? g.toNonIndexed() : g;
@@ -76,6 +95,7 @@ export function normalizeForMerge(g: THREE.BufferGeometry): THREE.BufferGeometry
   }
   if (!out.getAttribute('normal')) out.computeVertexNormals();
   if (!out.getAttribute('uv')) boxProjectUVs(out);
+  sanitizeNormals(out);
   out.clearGroups();
   return out;
 }

@@ -12,7 +12,7 @@ import { buildStreetSurface } from '../architecture/streetSurface';
 import { buildEntryArchway, type EntryArchway } from '../architecture/entryArchway';
 import { buildSideAlleys } from '../architecture/sideAlleys';
 import { buildStoops } from '../architecture/stoops';
-import { Kit } from '../architecture/kit';
+import { Kit, sanitizeNormals } from '../architecture/kit';
 import { buildShops, planStreet } from '../shops/plan';
 import { HERO_PLACEMENTS } from '../shops/heroes';
 import { createChimneySmoke } from '../fx/chimneySmoke';
@@ -89,6 +89,11 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   // ---- Temporary street glow (stand-ins until fx/lanterns) -------------------
   const glow = addStreetGlow(scene);
   stats.glowLights = glow;
+
+  // Backstop: no zero-length normals anywhere (NaN shading poisons bloom).
+  let fixedNormals = 0;
+  scene.traverse((o) => { const g = (o as THREE.Mesh).geometry; if (g) fixedNormals += sanitizeNormals(g); });
+  if (fixedNormals) console.info(`[alley] sanitized ${fixedNormals} degenerate normals`);
 
   stats.buildMs = Math.round(performance.now() - t0);
   console.info('[alley] build stats', stats);
