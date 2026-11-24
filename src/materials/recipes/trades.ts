@@ -98,3 +98,36 @@ export const velvet: TextureRecipe = {
     };
   },
 };
+
+/** Pale, scarred dragon hide: overlapping ivory scales, healed pink-grey scars, sooty creases. */
+export const dragonhide: TextureRecipe = {
+  id: 'dragonhide',
+  label: 'Pale scarred dragon hide',
+  size: 512,
+  worldSize: 0.7,
+  depth: 0.01 / 0.7,
+  ao: { radius: 0.012, strength: 3 },
+  material: { type: 'standard' },
+  setup({ noise }) {
+    const nScale = noise(1), nScar = noise(2), nTone = noise(3), nSoot = noise(4);
+    const w = createWorleySample();
+    return (u, v, o) => {
+      // Scales: Worley cells stretched along v, each a domed plate with a raised rim edge.
+      nScale.worley(u, v, 22, 30, 0.8, w);
+      const edge = smoothstep(0.0, 0.18, w.f2 - w.f1);
+      const dome = 1 - Math.min(1, w.f1 * 1.2);
+      const tone = nTone.fbm01(u, v, 3, 4);
+      setRGB(o, [mix(0.78, 0.86, tone), mix(0.76, 0.83, tone), mix(0.72, 0.78, tone)], 0.82 + 0.22 * dome);
+      mulRGB(o, 0.75 + 0.25 * edge);
+      // Scars: long diagonal gouges, healed pink-grey and raised at the margins.
+      const sc = nScar.fbmAniso(u + v * 0.6, v, 3, 18, 3);
+      const scar = 1 - smoothstep(0.0, 0.05, Math.abs(sc));
+      const scarMask = smoothstep(0.1, 0.3, nScar.fbm(u, v, 2, 2));
+      const s = scar * scarMask;
+      mixRGB(o, [0.62, 0.48, 0.48], s * 0.8);
+      mixRGB(o, [0.3, 0.27, 0.25], smoothstep(0.62, 0.82, nSoot.fbm01(u, v, 5, 3)) * (1 - edge) * 0.6);
+      o.h = 0.35 + 0.45 * dome * edge - 0.25 * s + 0.08 * scarMask * (1 - smoothstep(0.05, 0.12, Math.abs(sc)));
+      o.rough = clamp(0.62 + 0.2 * (1 - edge) + 0.1 * s);
+    };
+  },
+};

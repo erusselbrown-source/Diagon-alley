@@ -9,9 +9,9 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 | `src/core/` | Scene, renderer, camera, post-processing, debug HUD, seeded random (`SeededRandom`) |
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
-| `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
+| `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`, `gringotts.ts` + `gringottsDragon.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
 | `src/props/` | Instanced shop displays & clutter (`displays.ts`: prop kinds, `fillDisplay` themes, book towers, trunks) |
-| `src/fx/` | Volumetric fog, particles, lanterns, magic effects (`FxSystem` interface) |
+| `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards) |
 | `src/audio/` | Procedural Web Audio soundscapes (`AudioEngine`) |
 | `src/world/` | Scene assembly (`alley.ts`): loads materials, builds street + features, interaction |
 
@@ -32,6 +32,7 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - Check `STREET.isFrontageFree(side, s0, s1)` before placing — alcoves, Knockturn's mouth, the courtyard and Gringotts are reserved.
 - Stoops follow doors: `shops/plan.ts` turns every shop door into a `STREET.stoops` site, so a shop's floor height (`floor`, multiples of 0.16 m) sets its step count.
 - Courtyard archway: `ARCH_DURATION` = 3.5 s; click the wall or press E within 9 m.
+- Gringotts is placed with `STREET.gringottsSite()` (not the shop planner): its portico and stairs step forward into the plaza, its wedge body runs back between the branch lanes. The lanes are lined by `architecture/forkTerraces.ts` (use `STREET.laneFrontageTransform`) and fade into `fx/mist.ts` cards.
 
 ### Building kit (`src/architecture/kit.ts`)
 

@@ -16,6 +16,9 @@ import { Kit, sanitizeNormals } from '../architecture/kit';
 import { buildShops, planStreet } from '../shops/plan';
 import { HERO_PLACEMENTS } from '../shops/heroes';
 import { createChimneySmoke } from '../fx/chimneySmoke';
+import { createMist } from '../fx/mist';
+import { GRINGOTTS } from '../shops/gringotts';
+import { buildForkTerraces } from '../architecture/forkTerraces';
 
 export interface AlleyContext {
   renderer: THREE.WebGLRenderer;
@@ -38,7 +41,7 @@ export interface AlleyWorld {
 const MATERIALS: MaterialId[] = [
   'granite', 'grit', 'sandstone', 'brick', 'iron', 'oak', 'plaster', 'glass', 'brass', 'slate', 'slate-tile', 'copper', 'leather', 'velvet',
   'paint-oxblood', 'paint-charcoal', 'paint-indigo', 'paint-emerald', 'paint-ochre', 'paint-weasley', 'paint-magenta',
-  'paint-violet', 'paint-teal', 'paint-mustard', 'paint-plum', 'paint-cream',
+  'paint-violet', 'paint-teal', 'paint-mustard', 'paint-plum', 'paint-cream', 'marble', 'dragonhide',
 ];
 
 const tmpSize = new THREE.Vector2();
@@ -81,8 +84,22 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   scene.add(shops.group);
   STREET.stoops.splice(0, STREET.stoops.length, ...shops.stoops);
   scene.add(buildStoops(STREET, lib));
+
+  // ---- Gringotts at the fork, and the misty lanes beyond --------------------------
+  overlay.set('Raising Gringotts…');
+  await new Promise((r) => setTimeout(r, 0));
+  const bank = GRINGOTTS.build({ kit });
+  bank.group.matrixAutoUpdate = false;
+  bank.group.matrix.copy(STREET.gringottsSite().matrix);
+  scene.add(bank.group);
+  const fork = buildForkTerraces(kit, STREET);
+  scene.add(fork.group);
+  const mist = createMist(fork.mist);
+  scene.add(mist.object);
+  Object.assign(stats, fork.stats);
+
   scene.add(kit.instances.finalize(scene));
-  const animators = [...shops.animators, ...kit.animators];
+  const animators = [...shops.animators, ...kit.animators, ...(bank.animators ?? []), mist];
   const smoke = createChimneySmoke(kit.smoke.map((e) => e.anchor.localToWorld(e.local.clone())));
   scene.add(smoke.object);
   Object.assign(stats, shops.stats, { stoops: STREET.stoops.length, smokeEmitters: kit.smoke.length });

@@ -220,7 +220,7 @@ export class StreetLayout {
       const bn = new THREE.Vector3(-bd.z, 0, bd.x);
       const o = new THREE.Vector3(ef.x + sgn * ef.nx * (forkHalf + laneHalf), ef.y, ef.z + sgn * ef.nz * (forkHalf + laneHalf));
       const bp = (along: number, bend: number, dy: number) => o.clone().addScaledVector(bd, along).addScaledVector(bn, sgn * bend).add(new THREE.Vector3(0, dy, 0));
-      const bCurve = new THREE.CatmullRomCurve3([bp(-3, 0, 0), bp(0, 0, 0), bp(7, 0.6, -0.1), bp(16, 2.4, -0.35)]);
+      const bCurve = new THREE.CatmullRomCurve3([bp(-3, 0, 0), bp(0, 0, 0), bp(7, 0.6, -0.1), bp(16, 2.4, -0.35), bp(26, 5.6, -0.75), bp(38, 10.5, -1.2)]);
       const bs = new CurveSampler(bCurve);
       this.lanes.push({
         name: sgn < 0 ? 'branch-left' : 'branch-right', sampler: bs, s0: 0, s1: bs.length, halfWidth: laneHalf, crown: 0.04, tint: 0.92,
@@ -328,6 +328,25 @@ export class StreetLayout {
     const sm = s0 + frontage / 2;
     mid.y = Math.min(this.groundY(s0, side), this.groundY(s0 + frontage, side));
     return this.makeTransform(mid, inward, sm / this.length, sm, this.widthAtS(sm));
+  }
+
+  /**
+   * Like frontageTransform, but along a secondary lane (Y-branches, Knockturn).
+   * `side` is relative to walking the lane away from the main street.
+   */
+  laneFrontageTransform(lane: LaneSpec, side: Side, s0: number, frontage: number, offset = 0): StreetTransform {
+    const sg = sideSign(side);
+    const pt = (s: number) => {
+      const f = lane.sampler.frame(s, createFrame());
+      return new THREE.Vector3(f.x + f.nx * sg * lane.halfWidth, f.y, f.z + f.nz * sg * lane.halfWidth);
+    };
+    const a = pt(s0), b = pt(s0 + frontage);
+    const chord = b.clone().sub(a).setY(0).normalize();
+    const inward = new THREE.Vector3(-chord.z, 0, chord.x).multiplyScalar(-sg);
+    const mid = a.clone().add(b).multiplyScalar(0.5).addScaledVector(inward, -offset);
+    mid.y = Math.min(a.y, b.y);
+    const sm = s0 + frontage / 2;
+    return this.makeTransform(mid, inward, sm / this.length, sm, lane.halfWidth * 2);
   }
 
   /** True if no reserved feature (alcove, Knockturn, courtyard, Gringotts) overlaps [s0, s1] on a side. */

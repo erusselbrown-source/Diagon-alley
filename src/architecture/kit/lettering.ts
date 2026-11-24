@@ -21,10 +21,16 @@ export interface LetteringOptions {
   border?: boolean;
   seed?: string;
   italic?: boolean;
+  /** Canvas width in px (default 1024; use 4096 for crisp monumental friezes). */
+  resolution?: number;
+  /** Paint faint marble veining into the ground. */
+  marble?: boolean;
+  /** Letter spacing in em (Roman capitals look best ~0.12). */
+  tracking?: number;
 }
 
 export function makeLettering(o: LetteringOptions): { map: THREE.CanvasTexture; orm: THREE.CanvasTexture } {
-  const W = 1024, H = Math.max(96, Math.round(W / o.aspect));
+  const W = o.resolution ?? 1024, H = Math.max(96, Math.round(W / o.aspect));
   const rng = new SeededRandom(o.seed ?? o.text);
   const albedo = canvas(W, H), orm = canvas(W, H);
   const a = albedo.getContext('2d')!, r = orm.getContext('2d')!;
@@ -36,9 +42,25 @@ export function makeLettering(o: LetteringOptions): { map: THREE.CanvasTexture; 
   shade.addColorStop(0, 'rgba(255,255,255,0.06)'); shade.addColorStop(1, 'rgba(0,0,0,0.25)');
   a.fillStyle = shade; a.fillRect(0, 0, W, H);
   r.fillStyle = 'rgb(255,150,0)'; r.fillRect(0, 0, W, H); // AO 1, rough ~0.6, metal 0
+  if (o.marble) {
+    r.fillStyle = 'rgb(255,40,0)'; r.fillRect(0, 0, W, H); // polished marble ground
+    for (let i = 0; i < 26; i++) {
+      a.strokeStyle = `rgba(${rng.pick(['120,122,128', '150,140,120', '170,170,175'])},${rng.range(0.12, 0.35)})`;
+      a.lineWidth = rng.range(0.6, 2.2) * (W / 1024);
+      a.beginPath();
+      let x = rng.range(-0.1, 1.1) * W, y = rng.range(0, H);
+      a.moveTo(x, y);
+      for (let k = 0; k < 4; k++) {
+        const nx = x + rng.range(-0.15, 0.35) * W, ny = y + rng.range(-1, 1) * H;
+        a.bezierCurveTo(x + rng.range(0, 0.2) * W, y + rng.range(-1, 1) * H, nx - rng.range(0, 0.2) * W, ny + rng.range(-1, 1) * H, nx, ny);
+        x = nx; y = ny;
+      }
+      a.stroke();
+    }
+  }
 
   const ink = (ctx: CanvasRenderingContext2D, which: 'albedo' | 'orm') => {
-    if (which === 'orm') return style === 'gold' ? 'rgb(255,70,255)' : 'rgb(255,120,0)';
+    if (which === 'orm') return style === 'gold' ? 'rgb(255,45,255)' : 'rgb(255,120,0)';
     if (style === 'gold') {
       const g = ctx.createLinearGradient(0, H * 0.2, 0, H * 0.8);
       g.addColorStop(0, '#f6dc8c'); g.addColorStop(0.5, '#c79a3a'); g.addColorStop(1, '#8a6420');
@@ -62,8 +84,13 @@ export function makeLettering(o: LetteringOptions): { map: THREE.CanvasTexture; 
     while (ctx.measureText(o.text).width > W * 0.86 && size > 10) ctx.font = font((size *= 0.94));
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    if (o.tracking) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${o.tracking}em`;
     const y = o.sub ? H * 0.42 : H * 0.53;
-    if (which === 'albedo' && style !== 'black') {
+    if (which === 'albedo' && style === 'gold' && o.marble) {
+      // carved V-cut shadow beneath gilded letters
+      ctx.fillStyle = 'rgba(60,50,35,0.55)';
+      ctx.fillText(o.text, W / 2 + size * 0.02, y + size * 0.03);
+    } else if (which === 'albedo' && style !== 'black') {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       ctx.fillText(o.text, W / 2 + size * 0.03, y + size * 0.04);
     }
