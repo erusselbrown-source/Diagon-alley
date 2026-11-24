@@ -247,7 +247,7 @@ export function buildStreetSurface(layout: StreetLayout, lib: MaterialLibrary): 
 
   // ---- Joint bed --------------------------------------------------------------
   // Bed stops at the sett edge: the dished gutter stones (with skirts) take over beyond it.
-  const bed = new THREE.Mesh(mergeGeometries([bedGeometry(main, ws('grit'), 0.012), ...lanes.map((l) => bedGeometry(l, ws('grit')))])!, gritMat);
+  const bed = new THREE.Mesh(mergeGeometries([bedGeometry(main, ws('grit'), 0.012), ...lanes.map((l) => bedGeometry(l.name === 'knockturn' ? { ...l, s0: layout.knockturn.gateS - 1.4 } : l, ws('grit')))])!, gritMat);
   bed.receiveShadow = true;
   bed.name = 'joint-bed';
   group.add(bed);

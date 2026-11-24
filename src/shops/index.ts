@@ -1,6 +1,10 @@
 /**
  * Bespoke hero buildings. Each shop lives in its own module (e.g.
  * shops/wandShop.ts) and default-exports a ShopModule.
+ *
+ * Placement: build in local space, then snap with
+ * `STREET.frontageTransform(side, s0, frontage)` (or `getStreetTransform`) from
+ * architecture/street.ts, after checking `STREET.isFrontageFree(...)`.
  */
 import type * as THREE from 'three';
 import type { SeededRandom } from '../core/random';

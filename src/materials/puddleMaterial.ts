@@ -26,7 +26,7 @@ export function createPuddleMaterial(): PuddleMaterial {
     metalness: 0,
     transparent: true,
     depthWrite: false,
-    envMapIntensity: 1.8,
+    envMapIntensity: 3.0,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
@@ -88,7 +88,7 @@ export function createPuddleMaterial(): PuddleMaterial {
           return sum;
         }`)
       .replace('void main() {', 'void main() {\n  float pMask = puddleMask();')
-      .replace('#include <alphamap_fragment>', '#include <alphamap_fragment>\n  diffuseColor.a *= pMask * 0.92;')
+      .replace('#include <alphamap_fragment>', '#include <alphamap_fragment>\n  diffuseColor.a *= pMask * 0.8;')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix(0.45, 0.02, smoothstep(0.05, 0.6, pMask));')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         vec2 rp = rainRipples(vPuddleWorld.xz, uTime) * 0.35 * uRain;
