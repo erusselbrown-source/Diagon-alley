@@ -19,6 +19,10 @@ import { createChimneySmoke } from '../fx/chimneySmoke';
 import { createMist } from '../fx/mist';
 import { GRINGOTTS } from '../shops/gringotts';
 import { buildForkTerraces } from '../architecture/forkTerraces';
+import { scatterStreetClutter } from '../props/streetClutter';
+import { createSteam } from '../fx/steam';
+import { createSky } from '../fx/sky';
+import { createAmbientMagic } from '../fx/ambientMagic';
 
 export interface AlleyContext {
   renderer: THREE.WebGLRenderer;
@@ -98,8 +102,31 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   scene.add(mist.object);
   Object.assign(stats, fork.stats);
 
+  // ---- Street clutter along curbs & stoops (needs stoops from shop doors) ---------
+  const clutter = scatterStreetClutter(kit, STREET);
+  scene.add(clutter.group);
+  const steam = createSteam(clutter.steam);
+  scene.add(steam.object);
+  Object.assign(stats, clutter.stats);
+
   scene.add(kit.instances.finalize(scene));
-  const animators = [...shops.animators, ...kit.animators, ...(bank.animators ?? []), mist];
+
+  // ---- Sky, and the living magical layer ---------------------------------------------
+  const moon = new THREE.Vector3(-12, 20, 8);
+  scene.traverse((o) => { if ((o as THREE.DirectionalLight).isDirectionalLight) moon.copy(o.position); });
+  const sky = createSky(moon);
+  scene.add(sky.object);
+  scene.updateMatrixWorld(true);
+  const lanterns: THREE.Vector3[] = [];
+  scene.traverse((o) => {
+    const l = o as THREE.PointLight;
+    if (l.isPointLight && l.intensity > 0 && l.color.r > 0.8 && l.color.b < 0.6) lanterns.push(l.getWorldPosition(new THREE.Vector3()));
+  });
+  const magic = createAmbientMagic(STREET, lanterns);
+  scene.add(magic.object);
+  stats.lanternMotes = lanterns.length;
+
+  const animators = [...shops.animators, ...kit.animators, ...(bank.animators ?? []), mist, ...clutter.animators, steam, sky, magic];
   const smoke = createChimneySmoke(kit.smoke.map((e) => e.anchor.localToWorld(e.local.clone())));
   scene.add(smoke.object);
   Object.assign(stats, shops.stats, { stoops: STREET.stoops.length, smokeEmitters: kit.smoke.length });
@@ -133,7 +160,10 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
       const elapsed = world.debugTime ?? clock;
       surface.update(elapsed);
       for (const a of animators) a.update(dt, elapsed);
-      smoke.setViewport(renderer.getDrawingBufferSize(tmpSize).y, ctx.camera.fov);
+      const vh = renderer.getDrawingBufferSize(tmpSize).y;
+      smoke.setViewport(vh, ctx.camera.fov);
+      steam.setViewport(vh, ctx.camera.fov);
+      magic.setViewport(vh, ctx.camera.fov);
       smoke.update(dt, elapsed);
       archway.update(dt);
       hint.update();

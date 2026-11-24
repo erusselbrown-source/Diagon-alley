@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildBayWindow, buildHangingSign, buildTownhouse, mergeStatic, normalizeForMerge, planShopfront } from '../architecture/kit';
-import { bookTower, fillDisplay } from '../props/displays';
+import { bookTower } from '../props/displays';
+import { dressWindow } from '../props/dioramas';
 import type { ShopModule } from './index';
 
 export const FLOURISH_BLOTTS: ShopModule = {
@@ -44,10 +45,10 @@ export const FLOURISH_BLOTTS: ShopModule = {
     });
     const ground = house.storeys[0];
     const built = sf.build(ground);
-    for (const d of built.displays) fillDisplay(kit, d, 'books', rng);
+    const animators = built.displays.flatMap((d) => dressWindow(kit, d, 'books', rng, { levitatingBooks: 1 }));
 
     // Stacked upper bow windows on carved brackets, also full of books.
-    for (const cx of bayXs) {
+    bayXs.forEach((cx, bi) => {
       const bay = buildBayWindow({
         width: bayW, height: 2.3, projection: 0.55, sill: 0, facets: 7, panes: [2, 4], frame: burgundy, glass: M.get('glass'),
         stone: M.get('sandstone'), interior: M.interior('oak', 0xffb468, 0.5), corbels: 3, corbelMaterial: burgundy,
@@ -56,9 +57,11 @@ export const FLOURISH_BLOTTS: ShopModule = {
       house.storeys[1].add(bay.group);
       for (let i = 0; i < 6; i++) {
         const x = -bayW / 2 + 0.25 + (i * (bayW - 0.5)) / 5;
-        bookTower(kit, bay.display, x, rng.range(-0.25, 0.25), rng.range(0.9, 2.1), rng, 0.04);
+        bookTower(kit, bay.display, x, rng.range(-0.05, 0.3), rng.range(0.9, 2.1), rng, 0.04);
       }
-    }
+      // Towering shelves behind; the third levitating book drifts in the upper-left bay.
+      animators.push(...dressWindow(kit, { anchor: bay.display, bay, kind: 'bay' }, 'books', rng, { noFront: true, levitatingBooks: bi === 0 ? 1 : 0 }));
+    });
 
     // Hanging brass open-book sign
     const brass = M.get('brass');
@@ -85,6 +88,6 @@ export const FLOURISH_BLOTTS: ShopModule = {
     house.storeys[1].add(sign.group);
 
     mergeStatic(house.group, 'flourish-blotts-static');
-    return { group: house.group, doors: built.doors, animators: [sign] };
+    return { group: house.group, doors: built.doors, animators: [sign, ...animators] };
   },
 };

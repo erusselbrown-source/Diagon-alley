@@ -29,6 +29,7 @@ export class KitMaterials {
    * displays read at night without dozens of point lights.
    */
   interior(id: MaterialId, glow: THREE.ColorRepresentation = 0xffb066, intensity = 0.55): THREE.MeshStandardMaterial {
+    intensity = Math.round(intensity * 20) / 20; // quantise so variants share materials (and batches)
     return this.memo(`int:${id}:${glow}:${intensity}`, () => {
       const m = this.lib.get(id).clone();
       m.side = THREE.BackSide;

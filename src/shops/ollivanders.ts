@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { buildHangingSign, buildTownhouse, mergeStatic, planShopfront, sagStorey } from '../architecture/kit';
-import { propKind, BINDINGS } from '../props/displays';
+import { dressWindow } from '../props/dioramas';
 import type { ShopModule } from './index';
 
 export const OLLIVANDERS: ShopModule = {
@@ -63,19 +63,8 @@ export const OLLIVANDERS: ShopModule = {
     cushion.traverse((o) => { o.castShadow = true; });
     bay.anchor.add(cushion);
 
-    // Behind: shelves of wand boxes climbing into the gloom.
-    const shelfZ = -bay.bay.displaySize.interiorDepth + 0.15;
-    for (let row = 0; row < 7; row++) {
-      for (let col = 0; col < 7; col++) {
-        const stack = rng.int(2, 5);
-        for (let k = 0; k < stack; k++) {
-          kit.instances.put(propKind(kit, 'wandbox'), bay.anchor,
-            { x: -1.0 + col * 0.33 + rng.range(-0.03, 0.03), y: -0.3 + row * 0.36 + k * 0.053, z: shelfZ + rng.range(-0.03, 0.05) },
-            new THREE.Euler(0, Math.PI / 2 + rng.range(-0.12, 0.12), rng.range(-0.02, 0.02)), { x: 1, y: 1, z: 1 },
-            rng.pick(BINDINGS).clone().multiplyScalar(0.7));
-        }
-      }
-    }
+    // Behind: hundreds of dusty wand boxes on floor-to-ceiling shelves and in precarious towers.
+    const animators = dressWindow(kit, bay, 'wands', rng, { noFront: true, glow: 0xd8964a });
 
     sagStorey(house.storeys[1], w, 3.05, 0.13);
 
@@ -88,6 +77,6 @@ export const OLLIVANDERS: ShopModule = {
     house.storeys[1].add(sign.group);
 
     mergeStatic(house.group, 'ollivanders-static');
-    return { group: house.group, doors: built.doors, animators: [sign] };
+    return { group: house.group, doors: built.doors, animators: [sign, ...animators] };
   },
 };

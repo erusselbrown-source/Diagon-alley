@@ -30,6 +30,8 @@ export interface WallMaterials {
   glass?: THREE.Material;
   door?: THREE.Material;
   iron?: THREE.Material;
+  /** Room glimpsed behind glazed windows (inside-out box) — never flat black glass. */
+  interior?: THREE.Material;
 }
 
 export interface WallOptions {
@@ -106,6 +108,10 @@ export function buildWall(o: WallOptions): THREE.Group {
       const gw = w - FRAME * 2, gh = h - FRAME * 1.8;
       const pane = new THREE.PlaneGeometry(gw, gh);
       b.add(glass, pane, new THREE.Matrix4().makeTranslation(cx, y + FRAME * 0.8 + gh / 2, zf - 0.06));
+      if (mats.interior) {
+        const room = new THREE.BoxGeometry(gw + 0.06, gh + 0.06, 0.7).translate(cx, y + FRAME * 0.8 + gh / 2, zf - 0.07 - 0.35);
+        b.add(mats.interior, room);
+      }
       // Mullion and transom
       if (w > 0.75) b.box(mats.timber, 0.06, gh, 0.08, 0.01, { x: cx, y: y + FRAME * 0.8 + gh / 2, z: zf - 0.05 });
       b.box(mats.timber, gw, 0.06, 0.08, 0.01, { x: cx, y: y + FRAME * 0.8 + gh * 0.68, z: zf - 0.05 });

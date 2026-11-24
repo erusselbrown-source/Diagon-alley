@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildHangingSign, buildTownhouse, mergeStatic, normalizeForMerge, planShopfront, type Kit } from '../architecture/kit';
 import { trunkStack } from '../props/displays';
+import { dressWindow } from '../props/dioramas';
 import { STEP_TREAD } from '../architecture/stoops';
 import type { ShopModule } from './index';
 
@@ -112,6 +113,7 @@ export const WISEACRES: ShopModule = {
       kit.instances.put(i % 2 ? k.globe : k.telescope, disp.anchor, { x, y: 0, z: -0.25 + rng.range(-0.1, 0.1) }, new THREE.Euler(0, rng.range(-0.8, 0.8), 0), { x: 1.1, y: 1.1, z: 1.1 }, new THREE.Color(1, 0.9, 0.7));
     }
     trunkStack(kit, disp.anchor, 1.2, 0, -0.6, 2, rng, 0.6);
+    dressWindow(kit, disp, 'curios', rng, { noFront: true, glow: 0xffc27a });
 
     // Trunks stacked on the stoop beside the door
     const door = built.doors[0];

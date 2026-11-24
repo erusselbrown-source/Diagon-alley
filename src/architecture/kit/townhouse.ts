@@ -131,7 +131,11 @@ export function buildTownhouse(kit: Kit, spec: TownhouseSpec): Townhouse {
     const ws = st.worldSize ?? wsOf(kit, st.material, 1);
     const t = st.thickness ?? 0.3;
     const dI = depth + J;
-    const mats = { wall: mat, stone, timber: oak, glass, iron: M.get('iron'), door: trim };
+    // Rooms behind the windows: most upper floors warmly lit, the rest a dim cool glow.
+    const room = i === 0 ? M.interior('plaster', 0xffb070, 0.45)
+      : rng.chance(0.58) ? M.interior('plaster', rng.pick([0xffa860, 0xffbe80, 0xffc890]), rng.range(0.38, 0.62))
+        : M.interior('plaster', 0x6a7c98, 0.07);
+    const mats = { wall: mat, stone, timber: oak, glass, iron: M.get('iron'), door: trim, interior: room };
     const facade = buildWall({ name: `${spec.name}-f${i}`, length: w, height: st.height, thickness: t, wallWorldSize: ws, openings: st.openings ?? [], plinth: i === 0, top: 'none', materials: mats });
     facade.position.set(-w / 2, 0, -t / 2);
     g.add(facade);

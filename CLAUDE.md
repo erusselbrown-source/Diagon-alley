@@ -10,8 +10,8 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
 | `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`, `gringotts.ts` + `gringottsDragon.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
-| `src/props/` | Instanced shop displays & clutter (`displays.ts`: prop kinds, `fillDisplay` themes, book towers, trunks) |
-| `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards) |
+| `src/props/` | `displays.ts` (prop kinds, `fillDisplay` front risers, book towers, trunks), `dioramas.ts` (`dressWindow`: 1.5 m glowing window interiors + specials), `streetClutter.ts` (collision-aware pavement clutter, caged owls, weeds) |
+| `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards), `steam.ts` (cauldron steam), `sky.ts` (moonlit sky dome), `ambientMagic.ts` (paper planes, notices, lantern motes, owl flock) |
 | `src/audio/` | Procedural Web Audio soundscapes (`AudioEngine`) |
 | `src/world/` | Scene assembly (`alley.ts`): loads materials, builds street + features, interaction |
 
@@ -40,6 +40,9 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - Compose buildings as `planShopfront` (ground-floor openings) → `buildTownhouse` (jettied, leaning storeys + roof) → `sf.build(storeys[0])` → extras → `mergeStatic(house.group)`.
 - Repeated small things (slates, chimney pots, books, jars, bulbs…) go through `kit.instances` relative to an anchor (usually a storey group) so they follow the lean and still batch street-wide; prop kinds live in `props/displays.ts`.
 - Anything animated (signs, the Wheezes showman) must sit under an Object3D with `userData.keep = true` so `mergeStatic` / `mergeByCell` leave it dynamic, and expose an `Animator`.
+- Every shop window goes through `dressWindow(kit, display, theme, rng, opts)` — never leave black glass. Upper-floor windows get room boxes via `WallMaterials.interior` (townhouses do this automatically).
+- Interior "lamplight" is emissive (backdrop, lamp globes, additive light pools) — do not add point lights per shop; the forward renderer pays for every light on every pixel.
+- Street clutter must respect the occupancy rules in `streetClutter.ts`: nothing on stoops/door margins, alley mouths or the carriageway.
 - `plan.ts` batches all static shop geometry with `mergeByCell` (per material × 48 m cell); interiors, glass and lettering don't cast shadows.
 
 All randomness goes through `SeededRandom` (use `rng.fork(label)` per subsystem) so the scene is deterministic.

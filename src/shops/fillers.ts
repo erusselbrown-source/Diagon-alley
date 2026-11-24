@@ -11,7 +11,8 @@ import {
   type Kit, type LetterStyle, type ShopfrontItem, type StoreySpec,
 } from '../architecture/kit';
 import type { MaterialId } from '../materials';
-import { fillDisplay, propKind, trunkStack, type DisplayTheme } from '../props/displays';
+import { propKind, trunkStack, type DisplayTheme } from '../props/displays';
+import { dressWindow } from '../props/dioramas';
 import type { ShopBuild, ShopModule } from './index';
 
 export interface Trade {
@@ -129,7 +130,8 @@ function buildFiller(kit: Kit, o: FillerOptions, name: string): ShopBuild {
 
   const ground = house.storeys[0];
   const built = sf.build(ground);
-  for (const d of built.displays) fillDisplay(kit, d, t.theme, rng);
+  const animators = [];
+  built.displays.forEach((d, i) => animators.push(...dressWindow(kit, d, t.theme, rng, { floatingBroom: t.id === 'quidditch' && i === 0 })));
 
   if (upperBay) {
     const bay = buildBayWindow({
@@ -144,7 +146,6 @@ function buildFiller(kit: Kit, o: FillerOptions, name: string): ShopBuild {
   if (t.awning) ground.add(stripedAwning(kit, w - 0.7, t.awning, groundH - 1.0));
 
   // Swinging bracket sign on the first floor
-  const animators = [];
   if (rng.chance(0.75) && house.storeys[1]) {
     const sign = buildHangingSign(kit, {
       armLength: 1.1,

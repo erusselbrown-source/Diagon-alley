@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import {
   GeometryBucket, buildTownhouse, letteringMaterial, mergeStatic, planShopfront, type Animator, type Kit,
 } from '../architecture/kit';
-import { fillDisplay } from '../props/displays';
+import { dressWindow } from '../props/dioramas';
 import type { ShopModule } from './index';
 
 const W = 9.6;
@@ -251,7 +251,7 @@ export const WEASLEY_WHEEZES: ShopModule = {
     });
     const [g0, g1, g2] = house.storeys;
     const built = sf.build(g0);
-    for (const d of built.displays) fillDisplay(kit, d, 'jokes', rng);
+    const dioramaAnims = built.displays.flatMap((d) => dressWindow(kit, d, 'jokes', rng, { glow: 0xff9ae6 }));
 
     // ---- Art Nouveau trim ------------------------------------------------------
     const b0 = new GeometryBucket(), b1 = new GeometryBucket(), b2 = new GeometryBucket();
@@ -290,7 +290,7 @@ export const WEASLEY_WHEEZES: ShopModule = {
     g2.add(medal);
 
     // ---- Marquee bulbs -------------------------------------------------------
-    const animators: Animator[] = [];
+    const animators: Animator[] = [...dioramaAnims];
     const archBulbs = arch.getSpacedPoints(34).map((p) => p.clone().setZ(0.24));
     const fasciaBulbs: THREE.Vector3[] = [];
     for (let x = -W / 2 + 0.45; x <= W / 2 - 0.45; x += 0.26) fasciaBulbs.push(new THREE.Vector3(x, 4.6 - 0.12 - 0.75 - 0.06, 0.2));

@@ -38,7 +38,7 @@ export interface Bay {
   /** Facade opening to cut (x0, y0, width, height), in bay-local coordinates. */
   hole: { x: number; y: number; width: number; height: number };
   /** Usable display footprint (half-width x, depth z from facade inward to glass). */
-  displaySize: { halfWidth: number; depth: number; interiorDepth: number };
+  displaySize: { halfWidth: number; depth: number; interiorDepth: number; height: number };
 }
 
 /** Plate covering the bay's plan segment (chord along z = 0), extruded vertically. */
@@ -182,7 +182,7 @@ export function buildBayWindow(o: BayOptions): Bay {
   }
 
   // Interior box (inside-out) behind the facade opening
-  const D = o.interiorDepth ?? 1.2;
+  const D = o.interiorDepth ?? 1.5;
   const box = new THREE.BoxGeometry(o.width + 0.1, o.height + 0.32, D);
   box.translate(0, (gy0 + gy1) / 2 + 0.06, -D / 2 + 0.001);
   b.add(o.interior, box);
@@ -196,7 +196,7 @@ export function buildBayWindow(o: BayOptions): Bay {
     group,
     display,
     hole: { x: -o.width / 2, y: gy0 - 0.02, width: o.width, height: o.height + 0.24 },
-    displaySize: { halfWidth: o.width / 2 - 0.12, depth: o.projection - 0.08, interiorDepth: D },
+    displaySize: { halfWidth: o.width / 2 - 0.12, depth: o.projection - 0.08, interiorDepth: D, height: o.height },
   };
 }
 
@@ -230,7 +230,7 @@ export function buildFlatWindow(o: Omit<BayOptions, 'projection' | 'facets'> & {
       b.box(o.frame, (w / k) * 0.72, (gy0 - 0.15) * 0.6, 0.03, 0.012, { x: -w / 2 + (w / k) * (i + 0.5), y: (gy0 - 0.15) / 2, z: 0.015 });
     }
   }
-  const D = o.interiorDepth ?? 1.2;
+  const D = o.interiorDepth ?? 1.5;
   const box = new THREE.BoxGeometry(w + 0.1, o.height + 0.3, D);
   box.translate(0, (gy0 + gy1) / 2, -D / 2 + z);
   b.add(o.interior, box);
@@ -241,7 +241,7 @@ export function buildFlatWindow(o: Omit<BayOptions, 'projection' | 'facets'> & {
   return {
     group, display,
     hole: { x: -w / 2, y: gy0 - 0.08, width: w, height: o.height + 0.18 },
-    displaySize: { halfWidth: w / 2 - 0.15, depth: 0.0, interiorDepth: D },
+    displaySize: { halfWidth: w / 2 - 0.15, depth: 0.0, interiorDepth: D + (o.recess ?? 0.08), height: o.height },
   };
 }
 
