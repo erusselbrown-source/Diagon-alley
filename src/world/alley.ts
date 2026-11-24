@@ -31,6 +31,8 @@ export interface AlleyWorld {
   archway: EntryArchway;
   /** Dev aid: when set, animators see this fixed time instead of the clock. */
   debugTime: number | null;
+  /** Placed shops (side, s0, frontage, name). */
+  shops: { name: string; side: string; s0: number; frontage: number }[];
 }
 
 const MATERIALS: MaterialId[] = [
@@ -109,6 +111,7 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
     stats,
     archway,
     debugTime: null,
+    shops: shops.names,
     update(dt, clock) {
       const elapsed = world.debugTime ?? clock;
       surface.update(elapsed);

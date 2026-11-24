@@ -24,7 +24,7 @@ export function propKind(kit: Kit, kind: PropKind): string {
   const M = kit.mats;
   const glossy = M.memo('glossy', () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0.0 })) as THREE.MeshStandardMaterial;
   const defs: Record<PropKind, () => [THREE.BufferGeometry, THREE.Material]> = {
-    book: () => [new THREE.BoxGeometry(1, 1, 1).toNonIndexed(), M.display('leather', 0.3)],
+    book: () => [new THREE.BoxGeometry(1, 1, 1).toNonIndexed(), M.display('leather', 1.1)],
     jar: () => [lathe([[0, 0], [0.06, 0], [0.065, 0.02], [0.065, 0.13], [0.045, 0.15], [0.04, 0.17], [0.05, 0.18], [0.05, 0.2], [0, 0.2]]), M.displayFrom('glossy', glossy, 0.9)],
     bottle: () => [lathe([[0, 0], [0.045, 0], [0.05, 0.02], [0.05, 0.14], [0.02, 0.2], [0.016, 0.27], [0.022, 0.28], [0, 0.29]]), M.displayFrom('glossy', glossy, 0.9)],
     cauldron: () => [lathe([[0, 0.02], [0.12, 0], [0.2, 0.06], [0.24, 0.17], [0.22, 0.28], [0.2, 0.3], [0.215, 0.32], [0.19, 0.32], [0.17, 0.29], [0, 0.29]], 18), M.display('iron', 0.08)],
@@ -39,7 +39,7 @@ export function propKind(kit: Kit, kind: PropKind): string {
     eye: () => [merge(new THREE.SphereGeometry(0.016, 6, 4).translate(-0.025, 0.25, 0.062), new THREE.SphereGeometry(0.016, 6, 4).translate(0.025, 0.25, 0.062)), M.glow(0xffb020, 2.5)],
     robe: () => [merge(lathe([[0, 0], [0.24, 0], [0.2, 0.4], [0.16, 0.9], [0.2, 1.15], [0.08, 1.25], [0, 1.27]], 16), new THREE.SphereGeometry(0.09, 10, 8).translate(0, 1.38, 0), new THREE.ConeGeometry(0.11, 0.3, 12).translate(0, 1.6, 0)), M.display('velvet', 0.4)],
     sundae: () => [merge(lathe([[0, 0], [0.04, 0], [0.012, 0.03], [0.012, 0.08], [0.06, 0.12], [0.065, 0.13], [0, 0.13]]), new THREE.SphereGeometry(0.05, 10, 8).translate(0, 0.16, 0), new THREE.SphereGeometry(0.042, 10, 8).translate(0.02, 0.22, 0.01), new THREE.SphereGeometry(0.015, 6, 4).translate(0, 0.27, 0)), M.display('plaster', 0.8)],
-    wandbox: () => [new THREE.BoxGeometry(0.36, 0.05, 0.06).toNonIndexed(), M.display('leather', 0.25)],
+    wandbox: () => [new THREE.BoxGeometry(0.36, 0.05, 0.06).toNonIndexed(), M.display('leather', 0.7)],
     trunk: () => [merge(new THREE.BoxGeometry(0.9, 0.42, 0.5).translate(0, 0.21, 0), new THREE.CylinderGeometry(0.25, 0.25, 0.9, 12, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2).scale(1, 0.4, 1).translate(0, 0.42, 0)), M.display('leather', 0.12)],
     'trunk-band': () => {
       const g: THREE.BufferGeometry[] = [];
