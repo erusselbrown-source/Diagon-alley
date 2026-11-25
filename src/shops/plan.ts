@@ -5,6 +5,7 @@
  * Shop doors become the street's stoop sites.
  */
 import * as THREE from 'three';
+import type { ShopInterior } from './interior';
 import { SeededRandom } from '../core/random';
 import { mergeByCell, type Animator, type Kit } from '../architecture/kit';
 import type { Side, StoopSite, StreetLayout } from '../architecture/street';
@@ -67,6 +68,8 @@ export interface BuiltShops {
   stoops: StoopSite[];
   stats: Record<string, number>;
   names: { name: string; side: Side; s0: number; frontage: number }[];
+  /** Walk-in interiors with their shop's placement matrix (local → world). */
+  interiors: { name: string; interior: ShopInterior; matrix: THREE.Matrix4 }[];
 }
 
 export function buildShops(kit: Kit, layout: StreetLayout, placements: Placement[]): BuiltShops {
@@ -75,6 +78,7 @@ export function buildShops(kit: Kit, layout: StreetLayout, placements: Placement
   const animators: Animator[] = [];
   const stoops: StoopSite[] = [];
   const names: BuiltShops['names'] = [];
+  const interiors: BuiltShops['interiors'] = [];
   let seed = 0;
   for (const p of placements) {
     const tr = layout.frontageTransform(p.side, p.s0, p.module.frontage);
@@ -85,6 +89,7 @@ export function buildShops(kit: Kit, layout: StreetLayout, placements: Placement
     group.add(built.group);
     animators.push(...(built.animators ?? []));
     names.push({ name: p.module.name, side: p.side, s0: p.s0, frontage: p.module.frontage });
+    if (built.interior) interiors.push({ name: p.module.name, interior: built.interior, matrix: tr.matrix.clone() });
     for (const d of built.doors) {
       const s = tr.s + (p.side === 'left' ? d.x : -d.x);
       stoops.push({ s, side: p.side, width: d.width + 0.45, steps: Math.max(1, Math.round(d.floor / 0.16)), seed: seed++ });
@@ -98,7 +103,7 @@ export function buildShops(kit: Kit, layout: StreetLayout, placements: Placement
   group.name = 'shops-dynamic';
   root.add(group, batched);
   return {
-    group: root, animators, stoops, names,
+    group: root, animators, stoops, names, interiors,
     stats: { shops: placements.length, fillers: placements.filter((p) => p.module.id.startsWith('filler:')).length },
   };
 }

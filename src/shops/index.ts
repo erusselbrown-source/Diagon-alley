@@ -9,6 +9,7 @@
  */
 import type * as THREE from 'three';
 import type { Animator, Kit, PlacedDoor } from '../architecture/kit';
+import type { ShopInterior } from './interior';
 
 export interface ShopContext {
   kit: Kit;
@@ -18,6 +19,8 @@ export interface ShopBuild {
   group: THREE.Group;
   doors: PlacedDoor[];
   animators?: Animator[];
+  /** Walk-in interior (local frame, `userData.keep`), if the shop has one. */
+  interior?: ShopInterior;
 }
 
 export interface ShopModule {

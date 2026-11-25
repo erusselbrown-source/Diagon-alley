@@ -9,7 +9,7 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 | `src/core/` | Scene, renderer, camera, `controls.ts` (`ExplorerControls`: walk / tour / dev orbit), `overlay.ts` (title card, hint, crosshair, letterbox, toasts), `touchControls.ts` + `device.ts` (phone controls and quality tier), `lighting.ts` (key/bounce rig, `LightPool`, atmosphere presets, lightning), `postprocessing.ts` (bloom + film pass), debug HUD, seeded random (`SeededRandom`) |
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
-| `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`, `gringotts.ts` + `gringottsDragon.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
+| `src/shops/` | `interior.ts` (walk-in interior types, `LocalInstances`, procedural floor/wallpaper/ceiling/label textures), `interiors/` (one module per walk-in interior, e.g. `wheezesInterior.ts`), hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`, `gringotts.ts` + `gringottsDragon.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
 | `src/props/` | `displays.ts` (prop kinds, `fillDisplay` front risers, book towers, trunks), `dioramas.ts` (`dressWindow`: 1.5 m glowing window interiors + specials), `streetClutter.ts` (collision-aware pavement clutter, caged owls, weeds), `streetlamps.ts` (instanced cast-iron gas lamps, mantles, light cones) |
 | `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards), `steam.ts` (cauldron steam), `sky.ts` (gradient sky dome: clouds, stars, moon/sun, lightning flash), `rain.ts` (GPU rain streaks), `wand.ts` (first-person wand, spell bolts, spark pool, fireworks), `ambientMagic.ts` (paper planes, notices, lantern motes, owl flock) |
 | `src/audio/` | Procedural Web Audio: `AudioEngine` + `soundscape.ts` (crowd, wind, rain beds; spatial owls, creaks, footsteps, spell chimes, fireworks, thunder) |
@@ -39,7 +39,7 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - `core/lighting.ts` owns all scene lighting: moon/sun key `DirectionalLight` (shadow camera follows the view, texel-snapped), hemisphere bounce, a lightning light aimed at Gringotts, and the `LightPool`.
 - **Point lights go through the pool.** It keeps a fixed 14 `PointLight`s (no shader recompiles) and assigns them to the nearest/in-frustum `LightSource`s with fades. Publish a `LightSource` (lamps do) or add a plain `PointLight` — `adoptPointLights` hides it and drives it through the pool. Never add always-on point lights outside it.
 - Presets (`PRESETS`: Misty Blue Hour default, Golden Autumn Sunset, Midnight Storm) cross-fade sky, key, fog, exposure, bloom, lamp level, street wetness, rain and lightning. Add atmosphere state there, not ad hoc.
-- Post: `RenderPass → UnrealBloomPass (threshold ≈ 1 in HDR, so only emitters bloom) → film pass (vignette, grain, chromatic aberration) → OutputPass`. Keep marble/plaster albedo below the bloom threshold.
+- Post: `RenderPass → NaN scrub → UnrealBloomPass (threshold ≈ 1 in HDR, so only emitters bloom) → film pass (vignette, grain, chromatic aberration) → OutputPass`. Keep marble/plaster albedo below the bloom threshold.
 
 ### Exploration, wand & audio
 
@@ -50,6 +50,14 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - Audio is synthesized only, starts from the title-card click (a user gesture), and is driven from world state (`setWeather` from the preset, `onStrike` thunder, footsteps from head-bob).
 - Phones/tablets (`core/device.ts` `IS_TOUCH`) get `core/touchControls.ts` (floating left-thumb joystick feeding `explorer.stick`, drag-look, tap-to-cast at the tapped point, Tour/Weather/Sound buttons) and the lighter `QUALITY` tier (pixel ratio ≤ 1.5, 1024 shadow map, 8 pooled lights). Keep every action reachable by touch.
 - The first-person viewmodel is a child of the camera, drawn in the transparent pass at `renderOrder` 1000 with depth test off.
+
+### Walk-in shop interiors
+
+- A shop opts in by returning `interior: ShopInterior` from `build()` (see `weasleyWheezes.ts`): use an `openable` shopfront door (hinged double leaves, no glimpse box) and build the interior in `src/shops/interiors/<shop>Interior.ts`, in the shop's local frame, under a `userData.keep` group.
+- The interior publishes a `RoomSpec` (walkable rects, door-only threshold rects, furniture blockers/circles) for `world/walkArea.ts`, `Interactable`s (activated through the `InteractionFx` toolbox: sound, toast, sparkle, darkness, collect, music), `LocalLight`s for the pool, and animators. The world hides it beyond ~30 m and only then stops animating it.
+- Line walls a few cm proud of the brick (`WALL_IN`): the party walls' inner faces aren't planar. Window dioramas reach ~0.4 m past the 1.5 m box — keep partitions behind them.
+- Keep draws down: bake static meshes per piece with `mergeStatic` (animated parts as keepers), stock with `LocalInstances`, and give small or thin targets an invisible hit proxy (`material.visible = false`). Only the shell's ceiling/partitions cast shadows.
+- Every geometry needs real normals (no `setFromPoints` without a normal attribute) — NaN shading blacks out the frame through bloom.
 
 ### Building kit (`src/architecture/kit.ts`)
 

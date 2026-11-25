@@ -59,6 +59,9 @@ export class Overlay {
   private readonly bars: HTMLDivElement[];
   private readonly toastEl: HTMLDivElement;
   private readonly paused: HTMLDivElement;
+  private readonly dark: HTMLDivElement;
+  private readonly counter: HTMLDivElement;
+  private darkTimer = 0;
   private hintTimer = 0;
   private toastTimer = 0;
 
@@ -124,6 +127,22 @@ export class Overlay {
       position: 'absolute', right: '24px', bottom: touch ? '12px' : '50%', transform: touch ? 'none' : 'translateY(50%)', color: 'rgba(243,220,178,0.55)', font: `italic 12px ${SERIF}`, letterSpacing: '0.18em',
     }, this.bars[touch ? 0 : 1], touch ? 'Cinematic Tour &middot; tap Walk to explore' : 'Cinematic Tour &middot; press C to walk');
 
+    // ---- Instant Darkness: the screen goes black but for a few mischievous eyes
+    this.dark = el('div', {
+      position: 'absolute', inset: '0', background: 'radial-gradient(ellipse at center, rgba(3,2,6,0.93), rgba(0,0,0,0.99))',
+      opacity: '0', transition: 'opacity 0.35s ease', pointerEvents: 'none',
+    }, this.root);
+    for (const [x, y, d] of [[22, 38, 0], [71, 30, 0.6], [55, 66, 1.2], [33, 72, 1.8]]) {
+      el('div', { position: 'absolute', left: `${x}%`, top: `${y}%`, font: `14px ${SERIF}`, color: '#fff3a0', letterSpacing: '6px', textShadow: '0 0 8px #ffe070', animation: `da-pulse 1.6s ${d}s ease-in-out infinite` }, this.dark, '•&nbsp;•');
+    }
+
+    // ---- Golden Duck counter
+    this.counter = el('div', {
+      position: 'absolute', right: touch ? 'max(14px, env(safe-area-inset-right, 0px))' : '16px', top: touch ? 'calc(env(safe-area-inset-top, 0px) + 12px)' : '44px',
+      padding: '6px 12px', borderRadius: '16px', background: 'rgba(20,12,4,0.6)', border: '1px solid rgba(255,198,64,0.5)',
+      color: '#ffd76a', font: `13px ${SERIF}`, letterSpacing: '0.06em', opacity: '0', transition: 'opacity 0.6s',
+    }, this.root);
+
     // ---- Toast (spell names, weather)
     this.toastEl = el('div', {
       position: 'absolute', left: '50%', top: '18%', transform: 'translateX(-50%)', color: '#f6e6c4', font: `italic 22px ${SERIF}`, letterSpacing: '0.12em',
@@ -166,6 +185,20 @@ export class Overlay {
     this.bars[0].style.transform = on ? 'none' : 'translateY(-100%)';
     this.bars[1].style.transform = on ? 'none' : 'translateY(100%)';
     this.hint.style.visibility = on ? 'hidden' : 'visible';
+  }
+
+  /** Lights out for a few seconds (Instant Darkness Powder). */
+  darkness(seconds: number): void {
+    this.dark.style.opacity = '1';
+    clearTimeout(this.darkTimer);
+    this.darkTimer = window.setTimeout(() => { this.dark.style.opacity = '0'; }, seconds * 1000);
+  }
+
+  /** Show the hidden-collectible tally (null hides it). */
+  setCounter(text: string | null): void {
+    if (text === null) { this.counter.style.opacity = '0'; return; }
+    this.counter.innerHTML = text;
+    this.counter.style.opacity = '1';
   }
 
   toast(text: string, color = 'rgba(140,210,255,0.7)'): void {

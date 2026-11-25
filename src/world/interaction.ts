@@ -23,6 +23,8 @@ import type { Streetlamps } from '../props/streetlamps';
 import type { ClutterFootprint } from '../props/streetClutter';
 import { createWalkArea } from './walkArea';
 import { buildTour } from './tour';
+import type { BuiltShops } from '../shops/plan';
+import type { Interactable, InteractionFx } from '../shops/interior';
 
 export interface ExplorationDeps {
   renderer: THREE.WebGLRenderer;
@@ -36,6 +38,8 @@ export interface ExplorationDeps {
   footprints: readonly ClutterFootprint[];
   lighting: LightingRig;
   shops: { name: string; side: Side; s0: number; frontage: number }[];
+  /** Walk-in shop interiors (placed). */
+  interiors?: BuiltShops['interiors'];
 }
 
 export interface Exploration {
@@ -57,7 +61,12 @@ export function installExploration(d: ExplorationDeps): Exploration {
   const { renderer, scene, camera, layout, archway, kit, lamps, lighting } = d;
   const L = layout;
   const gMatrix = L.gringottsSite().matrix;
-  const area = createWalkArea({ layout: L, archway, gringotts: gMatrix, footprints: d.footprints, posts: lamps.posts });
+  // Walk-in interiors: door state per shop (0 shut … 1 wide open)
+  const shopsIn = (d.interiors ?? []).map((s) => ({ ...s, door: 0, doorTarget: 0, visible: true, centre: new THREE.Vector3(0, 2, -4.5).applyMatrix4(s.matrix), doorWorld: s.interior.door.center.clone().applyMatrix4(s.matrix) }));
+  const area = createWalkArea({
+    layout: L, archway, gringotts: gMatrix, footprints: d.footprints, posts: lamps.posts,
+    rooms: shopsIn.map((s) => ({ matrix: s.matrix, spec: s.interior.room, doorOpen: () => s.door > 0.7 })),
+  });
   const explorer = new ExplorerControls({ camera, dom: renderer.domElement, orbit: d.orbit, area });
   const overlay = new Overlay(IS_TOUCH);
   const audio = new Soundscape();
@@ -80,7 +89,7 @@ export function installExploration(d: ExplorationDeps): Exploration {
   const olli = find('ollivander'), wheezes = find('wheezes');
   const wheezesBox = wheezes ? (() => {
     const m = L.frontageTransform(wheezes.side, wheezes.s0, wheezes.frontage).matrix;
-    return { inv: m.clone().invert(), m, box: new THREE.Box3(new THREE.Vector3(-wheezes.frontage / 2, 0, -10), new THREE.Vector3(wheezes.frontage / 2, 15, 1.4)) };
+    return { inv: m.clone().invert(), m, box: new THREE.Box3(new THREE.Vector3(-wheezes.frontage / 2, 0, -0.35), new THREE.Vector3(wheezes.frontage / 2, 15, 1.4)) };
   })() : null;
 
   const targets: WandTarget[] = [
@@ -127,10 +136,12 @@ export function installExploration(d: ExplorationDeps): Exploration {
     },
     { // Weasleys' Wizard Wheezes: fireworks above the shop
       test(ray, max) {
-        if (!wheezesBox) return null;
+        if (!wheezesBox || (area.roomAt?.(ray.origin.x, ray.origin.z) ?? -1) >= 0) return null;
+        // the open doorway leads inside rather than setting off fireworks
         const local = ray.clone().applyMatrix4(wheezesBox.inv);
         const p = local.intersectBox(wheezesBox.box, new THREE.Vector3());
         if (!p) return null;
+        if (Math.abs(p.x) < 0.8 && p.y < 2.6 && (shopsIn[0]?.door ?? 0) > 0.5) return null;
         const dist = local.origin.distanceTo(p);
         if (dist > max) return null;
         const world = p.applyMatrix4(wheezesBox.m);
@@ -151,7 +162,8 @@ export function installExploration(d: ExplorationDeps): Exploration {
           ray.at(t, q);
           if (q.y > 18) { if (ray.direction.y > 0) return null; continue; }
           const g = area.sample(q.x, q.z, 0, true);
-          if ((g === null && q.y < 16) || (g !== null && q.y < g)) {
+          const ceil = area.ceilingAt?.(q.x, q.z) ?? null;
+          if ((g === null && q.y < 16) || (g !== null && q.y < g) || (ceil !== null && q.y > ceil)) {
             const point = prev.clone().lerp(q, 0.5);
             return { kind: 'surface', distance: t - 0.12, point };
           }
@@ -172,6 +184,56 @@ export function installExploration(d: ExplorationDeps): Exploration {
   scene.add(camera);
   camera.add(wand.viewmodel);
   lighting.pool.add(...wand.sources);
+
+  // ---- Shop interiors: lights, wand interactions, collectibles ------------------------
+  let ducksFound = 0;
+  const ducksTotal = shopsIn.reduce((a, s) => a + s.interior.collectibles, 0);
+  const found = new Set<string>();
+  const fx: InteractionFx = {
+    sound: (name, at) => audio.play(name, at),
+    toast: (text, color) => overlay.toast(text, color),
+    sparkle: (at, colors, count, speed) => wand.burst(at, colors, count, speed),
+    darkness: (s) => overlay.darkness(s),
+    collect(id, at) {
+      if (found.has(id)) return;
+      found.add(id);
+      ducksFound++;
+      overlay.setCounter(`★ Golden Ducks ${ducksFound} / ${ducksTotal}`);
+      if (ducksFound < ducksTotal) {
+        audio.play('chime', at);
+        overlay.toast(`A Golden Duck! (${ducksFound} of ${ducksTotal})`, 'rgba(255,198,64,0.9)');
+      } else {
+        audio.play('fanfare', at);
+        overlay.toast('All seven Golden Ducks! You’d make a fine prankster.', 'rgba(255,198,64,0.95)');
+        wand.burst(at.clone().add(new THREE.Vector3(0, 0.6, 0)), [new THREE.Color(0xffc640), new THREE.Color(0xff4fd0), new THREE.Color(0x7af0c0)], 220, 3.2);
+        if (wheezesBox) wand.fireworks(new THREE.Vector3(0, 12.5, -2.5).applyMatrix4(wheezesBox.m), 10);
+      }
+    },
+    music: () => audio.toggleMusic(),
+  };
+  for (const s of shopsIn) {
+    const it = s.interior;
+    for (const l of it.lights) lighting.pool.add({ ...l, position: l.position.clone().applyMatrix4(s.matrix) });
+    if (it.musicAt) audio.setMusicSource(it.musicAt.clone().applyMatrix4(s.matrix));
+    const owner = new Map<THREE.Object3D, Interactable>();
+    for (const x of it.interactables) owner.set(x.object, x);
+    const objects = it.interactables.map((x) => x.object);
+    targets.unshift({
+      test(ray, max) {
+        if (!s.visible) return null;
+        raycaster.ray.copy(ray); raycaster.far = max;
+        const shown = (o: THREE.Object3D | null): boolean => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+        const h = raycaster.intersectObjects(objects, true).find((hh) => shown(hh.object));
+        if (!h) return null;
+        let o: THREE.Object3D | null = h.object;
+        while (o && !owner.has(o)) o = o.parent;
+        const x = o ? owner.get(o)! : null;
+        if (!x) return null;
+        return { kind: 'interior', distance: h.distance, point: h.point.clone(), apply: () => x.activate(fx, h.point) };
+      },
+    });
+  }
+
   wand.events.onCast = () => audio.cast();
   wand.events.onImpact = (h) => { if (h.kind !== 'lamp') audio.impact(h.point); };
   wand.events.onFireworkLaunch = (p) => audio.fireworkLaunch(p);
@@ -284,6 +346,27 @@ export function installExploration(d: ExplorationDeps): Exploration {
         const A = lighting.current;
         audio.setWeather({ rain: A.rain, wind: 0.35 + 0.65 * A.rain, crowd: 1 - 0.4 * A.rain, wetness: A.wetness });
       }
+      // Shop interiors: show when near, swing the doors, muffle the street indoors
+      const feet = camera.position;
+      const inRoom = area.roomAt?.(feet.x, feet.z) ?? -1;
+      shopsIn.forEach((s, i) => {
+        const near = inRoom === i || feet.distanceTo(s.centre) < 30;
+        if (near !== s.visible) { s.visible = near; s.interior.group.visible = near; }
+        if (near) {
+          for (const a of s.interior.animators) a.update(dt, elapsed);
+          s.interior.look?.(camera);
+        }
+        const dx = feet.x - s.doorWorld.x, dz = feet.z - s.doorWorld.z;
+        const want = explorer.mode !== 'tour' && Math.hypot(dx, dz) < 2.9 ? 1 : 0;
+        if (want && !s.doorTarget) audio.play('jingle', s.doorWorld.clone().add(new THREE.Vector3(0, 2.3, 0)));
+        s.doorTarget = want;
+        s.door += (want - s.door) * (1 - Math.exp(-dt * (want ? 3.2 : 2.2)));
+        const e = s.door * s.door * (3 - 2 * s.door);
+        const [lft, rgt] = s.interior.door.leaves;
+        if (lft) lft.rotation.y = 1.35 * e;
+        if (rgt) rgt.rotation.y = -1.35 * e;
+      });
+      audio.setIndoors(inRoom >= 0 ? 1 : 0);
       audio.update(dt, camera, kit.signs);
     },
   };

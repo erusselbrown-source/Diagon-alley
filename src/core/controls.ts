@@ -22,6 +22,10 @@ export interface WalkArea {
   sample(x: number, z: number, margin: number, solidOnly?: boolean): number | null;
   /** Nearest standable point (used when leaving the tour / orbit). */
   snap(p: THREE.Vector3): THREE.Vector3;
+  /** Index of the walk-in room containing (x, z), or −1. */
+  roomAt?(x: number, z: number): number;
+  /** Ceiling height (world y) over (x, z) when indoors, else null. */
+  ceilingAt?(x: number, z: number): number | null;
 }
 
 export interface TourKey {

@@ -10,6 +10,7 @@ import {
   GeometryBucket, buildTownhouse, letteringMaterial, mergeStatic, planShopfront, type Animator, type Kit,
 } from '../architecture/kit';
 import { dressWindow } from '../props/dioramas';
+import { buildWheezesInterior } from './interiors/wheezesInterior';
 import type { ShopModule } from './index';
 
 const W = 9.6;
@@ -235,7 +236,7 @@ export const WEASLEY_WHEEZES: ShopModule = {
     const floor = 0.16;
     const sf = planShopfront(kit, W, {
       height: 4.6,
-      items: [{ kind: 'window', width: 3.0, panes: [3, 4] }, { kind: 'door', width: 1.5, glazed: true, fanlight: true }, { kind: 'window', width: 3.0, panes: [3, 4] }],
+      items: [{ kind: 'window', width: 3.0, panes: [3, 4] }, { kind: 'door', width: 1.5, glazed: true, fanlight: true, openable: true }, { kind: 'window', width: 3.0, panes: [3, 4] }],
       name: "WEASLEYS' WIZARD WHEEZES", sub: 'Purveyors of Pranks, Puzzles & Pyrotechnics', letterStyle: 'neon', fasciaColor: '#2a0f45',
       paint: magenta, muntin: brass, doorLeaf: orange, floor, wear: 0.05, interiorGlow: 0xff9ae6, interior: 'plaster', fasciaHeight: 0.75,
     });
@@ -307,7 +308,11 @@ export const WEASLEY_WHEEZES: ShopModule = {
     for (const sx of [-0.8, 0.8]) plinth.box(M.get('iron'), 0.08, 0.6, 1.3, 0.01, { x: sx, y: -0.38, z: 0.7 }, new THREE.Euler(-0.35, 0, 0));
     g1.add(plinth.build('showman-plinth'));
 
+    // ---- Walk-in shop floor behind the double doors ------------------------------
+    const interior = buildWheezesInterior(kit, kit.useRng('wheezes-interior'), built.doors[0]?.leaves ?? []);
+    house.group.add(interior.group);
+
     mergeStatic(house.group, 'wheezes-static');
-    return { group: house.group, doors: built.doors, animators };
+    return { group: house.group, doors: built.doors, animators, interior };
   },
 };

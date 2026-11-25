@@ -19,6 +19,7 @@ import type { EntryArchway } from '../architecture/entryArchway';
 import { STEP_TREAD } from '../architecture/stoops';
 import type { WalkArea } from '../core/controls';
 import type { ClutterFootprint } from '../props/streetClutter';
+import type { Rect, RoomSpec } from '../shops/interior';
 
 // Gringotts stair & portico (mirrors shops/gringotts.ts)
 const G_STEPS = 8, G_RISE = 0.18, G_TREAD = 0.42;
@@ -32,6 +33,8 @@ export interface WalkAreaOptions {
   gringotts: THREE.Matrix4;
   footprints: readonly ClutterFootprint[];
   posts: readonly THREE.Vector3[];
+  /** Walk-in shop rooms: local → world matrix, room spec, door state. */
+  rooms?: { matrix: THREE.Matrix4; spec: RoomSpec; doorOpen(): boolean }[];
 }
 
 const fr = createFrame();
@@ -124,7 +127,41 @@ export function createWalkArea(o: WalkAreaOptions): WalkArea {
     return null;
   }
 
+  // Walk-in rooms: a body of radius m fits if its centre and four rim points lie in the
+  // union of walkable rects (so the vestibule/room junction stays passable) and clear of furniture.
+  const rooms = (o.rooms ?? []).map((r) => ({ ...r, inv: r.matrix.clone().invert(), y0: new THREE.Vector3().setFromMatrixPosition(r.matrix).y }));
+  const inRect = (r: Rect, x: number, z: number, e = 0) => x >= r.x0 - e && x <= r.x1 + e && z >= r.z0 - e && z <= r.z1 + e;
+  const roomLocal = new THREE.Vector3();
+  function roomIndex(x: number, z: number): number {
+    for (let i = 0; i < rooms.length; i++) {
+      roomLocal.set(x, 0, z).applyMatrix4(rooms[i].inv);
+      const { spec } = rooms[i];
+      if (spec.rects.some((r) => inRect(r, roomLocal.x, roomLocal.z)) && roomLocal.z < 0) return i;
+    }
+    return -1;
+  }
+  function room(x: number, z: number, m: number, solidOnly = false): number | null {
+    for (const r of rooms) {
+      roomLocal.set(x, 0, z).applyMatrix4(r.inv);
+      const lx = roomLocal.x, lz = roomLocal.z;
+      const walk = r.doorOpen() ? [...r.spec.rects, ...r.spec.doorRects] : r.spec.rects;
+      const inside = (px: number, pz: number) => walk.some((q) => inRect(q, px, pz));
+      if (!inside(lx, lz)) continue;
+      if (!(inside(lx + m, lz) && inside(lx - m, lz) && inside(lx, lz + m) && inside(lx, lz - m))) return null;
+      if (solidOnly) return r.y0 + r.spec.floor; // furniture isn't a wall for spells (interactables are ray-tested exactly)
+      if (r.spec.blockers.some((q) => inRect(q, lx, lz, m))) return null;
+      if (r.spec.circles.some((c) => (c.x - lx) ** 2 + (c.z - lz) ** 2 < (c.r + m) ** 2)) return null;
+      return r.y0 + r.spec.floor;
+    }
+    return null;
+  }
+
   const sample = (x: number, z: number, m: number, solidOnly = false): number | null => {
+    if (rooms.length) {
+      const h = room(x, z, solidOnly ? 0 : m, solidOnly);
+      if (h !== null) return h;
+      if (roomIndex(x, z) >= 0) return null; // inside a room but not standable here
+    }
     if (!solidOnly) for (const p of o.posts) if ((p.x - x) ** 2 + (p.z - z) ** 2 < (0.22 + m) ** 2) return null;
     const g = gringotts(x, z, m);
     if (g === 'block') return null;
@@ -134,6 +171,11 @@ export function createWalkArea(o: WalkAreaOptions): WalkArea {
 
   return {
     sample,
+    roomAt: (x, z) => roomIndex(x, z),
+    ceilingAt(x, z) {
+      const i = roomIndex(x, z);
+      return i < 0 ? null : rooms[i].y0 + rooms[i].spec.ceiling;
+    },
     snap(p) {
       if (sample(p.x, p.z, 0.3) !== null) return p.clone();
       const s = THREE.MathUtils.clamp(nearestS(L.sampler, p.x, p.z), 2, L.length - 7);

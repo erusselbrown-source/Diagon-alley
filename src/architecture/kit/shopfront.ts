@@ -18,7 +18,7 @@ import type { WallOpening } from './wall';
 export type ShopfrontItem =
   | { kind: 'bay'; width: number; projection?: number; panes?: [number, number]; facets?: number }
   | { kind: 'window'; width: number; panes?: [number, number] }
-  | { kind: 'door'; width?: number; fanlight?: boolean; glazed?: boolean };
+  | { kind: 'door'; width?: number; fanlight?: boolean; glazed?: boolean; openable?: boolean };
 
 export interface ShopfrontSpec {
   height: number;
@@ -39,7 +39,7 @@ export interface ShopfrontSpec {
 }
 
 export interface PlacedDisplay { anchor: THREE.Object3D; bay: Bay; kind: 'bay' | 'window' }
-export interface PlacedDoor { x: number; width: number; floor: number }
+export interface PlacedDoor { x: number; width: number; floor: number; leaves?: THREE.Object3D[] }
 
 export interface Shopfront {
   openings: WallOpening[];
@@ -91,7 +91,7 @@ export function planShopfront(kit: Kit, width: number, spec: ShopfrontSpec): Sho
     if (it.kind === 'door') {
       const d = buildDoor({
         width: it.width ?? 1.0, height: Math.min(2.3, winTop - floor - 0.5), floor, transom: 0.4, fanlight: it.fanlight, glazedUpper: it.glazed ?? true,
-        leaf: spec.doorLeaf ?? paint, frame: paint, stone: M.get('sandstone'), brass: M.get('brass'), glass: M.get('glass'), interior,
+        leaf: spec.doorLeaf ?? paint, frame: paint, stone: M.get('sandstone'), brass: M.get('brass'), glass: M.get('glass'), interior, openable: it.openable,
       });
       parts.push({ item: it, cx, w, obj: d });
       openings.push({ kind: 'void', x: cx + d.hole.x, y: d.hole.y, width: d.hole.width, height: d.hole.height });
@@ -118,7 +118,7 @@ export function planShopfront(kit: Kit, width: number, spec: ShopfrontSpec): Sho
         const lx = p.cx - width / 2;
         p.obj.group.position.x = lx;
         storey.add(p.obj.group);
-        if (p.item.kind === 'door') doors.push({ x: lx, width: (p.obj as ReturnType<typeof buildDoor>).width, floor });
+        if (p.item.kind === 'door') { const d = p.obj as ReturnType<typeof buildDoor>; doors.push({ x: lx, width: d.width, floor, leaves: d.leaves }); }
         else displays.push({ anchor: (p.obj as Bay).display, bay: p.obj as Bay, kind: p.item.kind });
       }
 

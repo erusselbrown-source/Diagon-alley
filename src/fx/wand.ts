@@ -227,6 +227,8 @@ export interface Wand {
   /** Cast along `ray` (from the camera). Returns the hit (if any). */
   cast(ray: THREE.Ray, fromTip?: boolean): WandHit | null;
   fireworks(base: THREE.Vector3, count?: number): void;
+  /** A sphere of sparkles at a point (indoor whiz-bangs, pops, finds). */
+  burst(at: THREE.Vector3, colors?: THREE.Color[], count?: number, speed?: number): void;
   setViewport(heightPx: number, fovDeg: number): void;
   update(dt: number, t: number, camera: THREE.Camera): void;
 }
@@ -308,6 +310,12 @@ export function createWand(opts: { wood: THREE.Material; targets: WandTarget[]; 
       for (let k = 0; k < 18; k++) sparks.emit(from, sphere(rng.range(0.4, 1.4)).addScaledVector(ray.direction, 1.2), k % 2 ? GOLD : CYAN, rng.range(0.15, 0.4), rng.range(0.02, 0.04), 3, 0.5);
       events.onCast?.(from.clone());
       return hit;
+    },
+    burst(at, colors = [CYAN, GOLD], count = 60, speed = 2) {
+      for (let k = 0; k < count; k++) sparks.emit(at, sphere(speed * rng.range(0.35, 1.05)), c.copy(colors[k % colors.length]).multiplyScalar(1.8), rng.range(0.5, 1.3), rng.range(0.035, 0.08), 2.2, -2.2, k % 3 === 0 ? CRACKLE : 0);
+      sparks.emit(at, v.set(0, 0, 0), WHITE, 0.15, 0.6, 0, 0);
+      impactSrc.position.copy(at);
+      impactI = Math.max(impactI, 8);
     },
     fireworks(base, count = 5) {
       for (let k = 0; k < count; k++) pending.push({ at: now + k * rng.range(0.18, 0.4), base: base.clone(), big: k === count - 1 });

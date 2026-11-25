@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three';
 import { AudioEngine } from './index';
+import type { SfxName } from '../shops/interior';
 import { SeededRandom } from '../core/random';
 
 export interface Weather { rain: number; wind: number; crowd: number; wetness: number }
@@ -26,6 +27,9 @@ export class Soundscape {
   private ctx!: AudioContext;
   private sfx!: GainNode;
   private amb!: GainNode;
+  private ambLP!: BiquadFilterNode;
+  private indoors = 0;
+  private music: { pos: THREE.Vector3; on: boolean; panner: PannerNode | null; gain: GainNode | null; next: number; step: number; tune: number } = { pos: new THREE.Vector3(), on: true, panner: null, gain: null, next: 0, step: 0, tune: 0 };
   private started = false;
   private muted = false;
   private readonly rng = new SeededRandom('soundscape');
@@ -51,7 +55,9 @@ export class Soundscape {
     this.engine.master!.connect(comp).connect(ctx.destination);
     this.engine.master!.gain.value = 0;
     this.engine.master!.gain.setTargetAtTime(0.75, ctx.currentTime, 0.8); // fade in
-    this.amb = ctx.createGain(); this.amb.connect(this.engine.master!);
+    this.amb = ctx.createGain();
+    this.ambLP = this.filter('lowpass', 20000, 0.5);
+    this.amb.connect(this.ambLP).connect(this.engine.master!);
     this.sfx = ctx.createGain(); this.sfx.connect(this.engine.master!);
 
     this.white = this.engine.createNoiseBuffer(3, 11);
@@ -236,6 +242,7 @@ export class Soundscape {
         this.creak(s.pivot.getWorldPosition(new THREE.Vector3()), 0.35 + Math.min(1, s.speed * 1.5));
       }
     }
+    this.scheduleMusic();
     void dt;
   }
 
@@ -282,7 +289,8 @@ export class Soundscape {
   /** Inharmonic bell: partial ratios of a small struck bar/bell. */
   private bell(dest: AudioNode, f: number, at: number, peak: number, decay = 1.4): void {
     const partials: [number, number, number][] = [[1, 1, 1], [2.0, 0.5, 0.7], [2.76, 0.35, 0.55], [4.07, 0.22, 0.4], [5.4, 0.12, 0.3]];
-    for (const [r, a, d] of partials) this.tone(dest, 'sine', f * r, f * r * 1.002, at, 0.004, decay * d, peak * a);
+    const nyq = this.ctx.sampleRate * 0.45;
+    for (const [r, a, d] of partials) if (f * r < nyq) this.tone(dest, 'sine', f * r, f * r * 1.002, at, 0.004, decay * d, peak * a);
   }
 
   private shimmer(dest: AudioNode, at: number, dur: number, peak: number, up = true): void {
@@ -410,6 +418,151 @@ export class Soundscape {
     this.noiseBurst(p, this.brown, now, 0.4, seconds, 0.35, [this.filter('lowpass', 300)]);
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Indoors, the shop's music box, and shop sound effects
+  // ---------------------------------------------------------------------------
+
+  /** 0 = street, 1 = inside a shop: the street beds go muffled and quieter. */
+  setIndoors(k: number): void {
+    if (!this.started || Math.abs(k - this.indoors) < 0.01) return;
+    this.indoors = k;
+    const t = this.ctx.currentTime;
+    this.ambLP.frequency.setTargetAtTime(k > 0.5 ? 650 : 20000, t, 0.35);
+    this.amb.gain.setTargetAtTime(k > 0.5 ? 0.45 : 1, t, 0.35);
+  }
+
+  /** Where the shop's gramophone sits (world). */
+  setMusicSource(pos: THREE.Vector3): void { this.music.pos.copy(pos); if (this.music.panner) this.place(this.music.panner, pos); }
+
+  /** Toggle the gramophone; returns true if playing. */
+  toggleMusic(): boolean {
+    this.music.on = !this.music.on;
+    if (this.music.on) { this.music.tune = (this.music.tune + 1) % TUNES.length; this.music.step = 0; this.music.next = this.started ? this.ctx.currentTime + 0.1 : 0; }
+    return this.music.on;
+  }
+
+  private place(p: PannerNode, pos: THREE.Vector3): void {
+    if (p.positionX) { p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z; } else p.setPosition(pos.x, pos.y, pos.z);
+  }
+
+  private scheduleMusic(): void {
+    const m = this.music;
+    if (!m.on || m.pos.lengthSq() === 0) return;
+    if (!m.panner) {
+      m.panner = this.spatial(m.pos, 1.8, 1.6);
+      m.gain = this.gain(0.55);
+      m.gain.connect(m.panner);
+      m.next = this.ctx.currentTime + 0.2;
+    }
+    // only bother while within earshot
+    if (this.listenerPos.distanceTo(m.pos) > 26) { m.next = this.ctx.currentTime + 0.1; return; }
+    const tune = TUNES[m.tune];
+    const beat = 60 / tune.bpm;
+    while (m.next < this.ctx.currentTime + 0.25) {
+      const [semi, len] = tune.notes[m.step % tune.notes.length];
+      if (semi !== null) {
+        const f = tune.root * Math.pow(2, semi / 12);
+        // music-box tine: a sine with a quick, slightly inharmonic overtone and a long decay
+        this.tone(m.gain!, 'sine', f, f, m.next, 0.003, 1.4, 0.05);
+        this.tone(m.gain!, 'sine', f * 4.02, f * 4.02, m.next, 0.002, 0.25, 0.012);
+        if (m.step % 3 === 0) this.tone(m.gain!, 'triangle', tune.root / 2 * Math.pow(2, tune.bass[Math.floor(m.step / 3) % tune.bass.length] / 12), tune.root / 2, m.next, 0.01, 0.9, 0.025, 10);
+      }
+      m.next += beat * len;
+      m.step++;
+    }
+  }
+
+  /** One-shot shop sounds, at a world position. */
+  play(name: SfxName, pos: THREE.Vector3): void {
+    if (!this.started) return;
+    const now = this.ctx.currentTime, rng = this.rng;
+    const p = this.spatial(pos, 2.5, 1.2);
+    switch (name) {
+      case 'ding': this.bell(p, 1975, now, 0.16, 2.4); break;
+      case 'kaching': {
+        this.noiseBurst(p, this.white, now, 0.002, 0.08, 0.2, [this.filter('bandpass', 2500, 2)]);
+        this.bell(p, 2349, now + 0.12, 0.14, 1.6); this.bell(p, 2960, now + 0.2, 0.1, 1.4);
+        for (let i = 0; i < 14; i++) this.bell(p, rng.range(3800, 6200), now + 0.25 + rng.range(0, 0.6), 0.025, 0.25); // coins
+        break;
+      }
+      case 'boing': {
+        const o = this.ctx.createOscillator(), g = this.gain(0);
+        o.type = 'sine';
+        const curve = new Float32Array(64);
+        for (let i = 0; i < 64; i++) { const k = i / 63; curve[i] = 220 + 260 * k + 160 * Math.sin(k * 40) * Math.exp(-k * 4); }
+        o.frequency.setValueCurveAtTime(curve, now, 0.7);
+        g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.3, now + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+        o.connect(g).connect(p); o.start(now); o.stop(now + 0.8);
+        break;
+      }
+      case 'squeak': for (let i = 0; i < 3; i++) this.tone(p, 'sine', rng.range(1900, 2400), rng.range(2600, 3200), now + i * 0.11 + rng.range(0, 0.03), 0.01, 0.09, 0.12, 0.06); break;
+      case 'whoopee': {
+        const o = this.ctx.createOscillator(), g = this.gain(0);
+        o.type = 'sawtooth';
+        const curve = new Float32Array(80);
+        for (let i = 0; i < 80; i++) { const k = i / 79; curve[i] = (150 - 70 * k) * (1 + 0.25 * Math.sin(i * 2.7) * rng.range(0.5, 1)); }
+        o.frequency.setValueCurveAtTime(curve, now, 1.1);
+        const lp = this.filter('lowpass', 1100, 1.5), bp = this.filter('bandpass', 420, 1.2);
+        g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.35, now + 0.05); g.gain.setValueAtTime(0.3, now + 0.9); g.gain.exponentialRampToValueAtTime(0.0001, now + 1.15);
+        o.connect(lp).connect(bp).connect(g).connect(p); o.start(now); o.stop(now + 1.2);
+        break;
+      }
+      case 'pop': {
+        this.noiseBurst(p, this.pink, now, 0.001, 0.08, 0.6, [this.filter('highpass', 400)]);
+        this.tone(p, 'sine', 700, 140, now, 0.001, 0.08, 0.3, 0.07);
+        for (let i = 0; i < 5; i++) this.noiseBurst(p, this.white, now + 0.1 + rng.range(0, 0.3), 0.001, 0.02, 0.12, [this.filter('highpass', 3000)]);
+        break;
+      }
+      case 'laugh': {
+        for (let i = 0; i < 5; i++) {
+          const at = now + i * 0.16, f0 = 230 - i * 12;
+          const o = this.ctx.createOscillator(), g = this.gain(0);
+          o.type = 'sawtooth'; o.frequency.setValueAtTime(f0 * 1.15, at); o.frequency.exponentialRampToValueAtTime(f0, at + 0.12);
+          const f1 = this.filter('bandpass', 750, 4), f2 = this.filter('bandpass', 1250, 5);
+          g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(0.25, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.13);
+          o.connect(f1).connect(g); o.connect(f2).connect(g); g.connect(p);
+          o.start(at); o.stop(at + 0.15);
+          this.noiseBurst(p, this.white, at, 0.005, 0.05, 0.05, [this.filter('bandpass', 2500, 2)]); // the "h"
+        }
+        break;
+      }
+      case 'honk': {
+        const o = this.ctx.createOscillator(), g = this.gain(0);
+        o.type = 'sawtooth';
+        const curve = new Float32Array(40);
+        for (let i = 0; i < 40; i++) { const k = i / 39; curve[i] = 950 - 350 * k + 60 * Math.sin(k * 60); }
+        o.frequency.setValueCurveAtTime(curve, now, 0.55);
+        const bp = this.filter('bandpass', 1500, 6);
+        g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.4, now + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+        o.connect(bp).connect(g).connect(p); o.start(now); o.stop(now + 0.65);
+        break;
+      }
+      case 'jingle': for (let i = 0; i < 6; i++) this.bell(p, rng.range(2500, 3500), now + rng.range(0, 0.45), 0.05, 0.6); break;
+      case 'thunderlet': {
+        this.noiseBurst(p, this.pink, now, 0.003, 0.15, 0.35, [this.filter('lowpass', 2500)]);
+        this.noiseBurst(p, this.brown, now + 0.05, 0.08, 1.2, 0.6, [this.filter('lowpass', 380)]);
+        break;
+      }
+      case 'chime': [0, 4, 7, 12, 16].forEach((s, i) => this.bell(p, 1046.5 * Math.pow(2, s / 12), now + i * 0.07, 0.07, 1.6)); this.shimmer(p, now, 0.6, 0.15); break;
+      case 'fanfare': [0, 4, 7, 12, 7, 12, 16, 19, 24].forEach((s, i) => this.bell(p, 784 * Math.pow(2, s / 12), now + i * 0.1, 0.08, 1.8)); this.shimmer(p, now, 1.4, 0.2); break;
+      case 'whistle': {
+        for (const f of [880, 1108]) this.tone(p, 'sine', f, f * 1.01, now, 0.04, 0.7, 0.08, 0.7);
+        this.noiseBurst(p, this.white, now, 0.04, 0.65, 0.05, [this.filter('bandpass', 2000, 2)]);
+        break;
+      }
+      case 'crank': for (let i = 0; i < 12; i++) this.noiseBurst(p, this.white, now + i * 0.08, 0.001, 0.025, 0.12, [this.filter('bandpass', 3200, 6)]); break;
+      case 'swish': {
+        const bp = this.filter('bandpass', 6000, 1.2);
+        bp.frequency.setValueAtTime(6000, now); bp.frequency.exponentialRampToValueAtTime(600, now + 0.7);
+        this.noiseBurst(p, this.white, now, 0.08, 0.75, 0.3, [bp]);
+        break;
+      }
+      case 'puff': this.noiseBurst(p, this.pink, now, 0.02, 0.3, 0.2, [this.filter('lowpass', 900)]); break;
+      case 'creak': this.creak(pos, 1.2); break;
+    }
+  }
+
   /** Thunder after a lightning flash: a crack and a long, wandering rumble. */
   thunder(): void {
     if (!this.started) return;
@@ -431,3 +584,19 @@ export class Soundscape {
     s.start(at, rng.range(0, 0.5)); s.stop(at + dur + 0.1);
   }
 }
+
+/** Music-box tunes (original): [semitones above root | null for a rest, length in beats]. */
+const TUNES: { root: number; bpm: number; notes: [number | null, number][]; bass: number[] }[] = [
+  { // a jaunty waltz
+    root: 783.99, bpm: 168,
+    notes: [[0, 1], [4, 1], [7, 1], [12, 2], [11, 1], [9, 1], [7, 1], [4, 1], [5, 2], [7, 1], [9, 2], [7, 1], [5, 1], [4, 1], [2, 1], [0, 3],
+      [7, 1], [9, 1], [11, 1], [12, 2], [14, 1], [16, 2], [12, 1], [9, 1], [11, 1], [7, 1], [5, 2], [4, 1], [2, 1], [4, 1], [0, 3]],
+    bass: [0, 0, 5, 7, 0, 0, 5, 0, 7, 7, 0, 0],
+  },
+  { // a sneaky tiptoe
+    root: 659.25, bpm: 150,
+    notes: [[0, 0.5], [null, 0.5], [3, 0.5], [null, 0.5], [7, 0.5], [6, 0.5], [7, 1], [null, 0.5], [10, 0.5], [8, 0.5], [7, 0.5], [3, 1.5], [null, 0.5],
+      [2, 0.5], [3, 0.5], [5, 0.5], [7, 0.5], [8, 1], [7, 0.5], [5, 0.5], [3, 0.5], [2, 0.5], [0, 2]],
+    bass: [0, 0, 3, 7, 5, 0, 7, 0],
+  },
+];

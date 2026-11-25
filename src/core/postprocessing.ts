@@ -60,7 +60,7 @@ const FilmShader = {
 };
 
 /**
- * Render → selective bloom → film micro-pass → OutputPass.
+ * Render → NaN scrub → selective bloom → film micro-pass → OutputPass.
  *
  * Bloom runs on linear HDR before tone mapping; a threshold just above 1
  * means only true emitters (gas mantles, shop interiors, potions, sparks,
@@ -75,6 +75,19 @@ export function createPostProcessing(
   const size = renderer.getSize(new THREE.Vector2());
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
+  // Safety net: one non-finite pixel (a degenerate normal, a 0/0 somewhere) would otherwise be
+  // smeared by the bloom blur into a fully black frame. Scrub it to black before bloom.
+  composer.addPass(new ShaderPass({
+    name: 'ScrubNaN',
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+      void main() {
+        vec4 c = texture2D(tDiffuse, vUv);
+        bvec4 bad = bvec4(isnan(c.r) || isinf(c.r), isnan(c.g) || isinf(c.g), isnan(c.b) || isinf(c.b), isnan(c.a) || isinf(c.a));
+        gl_FragColor = any(bad) ? vec4(0.0, 0.0, 0.0, 1.0) : max(c, vec4(0.0));
+      }`,
+  }));
 
   const bloom = new UnrealBloomPass(size, 0.55, 0.62, 1.05);
   composer.addPass(bloom);

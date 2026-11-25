@@ -169,7 +169,7 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
 
   const exploration = installExploration({
     renderer, scene, camera: ctx.camera, orbit: ctx.controls, layout: STREET, archway, kit, lamps,
-    footprints: clutter.footprints, lighting, shops: shops.names,
+    footprints: clutter.footprints, lighting, shops: shops.names, interiors: shops.interiors,
   });
   const folder = gui.addFolder('Alley');
   folder.add({ toggleArch: () => archway.trigger() }, 'toggleArch').name('open / close archway');
