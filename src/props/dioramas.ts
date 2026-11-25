@@ -168,10 +168,14 @@ function nimbus(kit: Kit): THREE.Group {
   const M = kit.mats;
   const g = new THREE.Group();
   const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, 1.05, 12).rotateZ(Math.PI / 2), M.memo('nimbus-handle', () => {
-    const m = M.get('oak').clone(); m.color.setRGB(0.55, 0.32, 0.2); m.roughness = 0.25; m.name = 'nimbus-handle'; return m;
+    const m = M.get('oak').clone(); m.color.setRGB(0.55, 0.32, 0.2); m.roughness = 0.25; m.name = 'nimbus-handle';
+    m.emissive = new THREE.Color(1, 0.7, 0.45); m.emissiveMap = m.map; m.emissiveIntensity = 0.55; return m; // catching the spotlight
   }));
   handle.position.x = 0.15;
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.5, 14, 1, true).rotateZ(Math.PI / 2), M.tinted('oak', 0xd8b070, 'twigs'));
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.5, 14, 1, true).rotateZ(Math.PI / 2), M.memo('nimbus-twigs', () => {
+    const m = M.get('oak').clone(); m.color.setRGB(0.85, 0.7, 0.45); m.side = THREE.DoubleSide;
+    m.emissive = new THREE.Color(1, 0.78, 0.5); m.emissiveMap = m.map; m.emissiveIntensity = 0.6; m.name = 'nimbus-twigs'; return m;
+  }) as THREE.MeshStandardMaterial);
   tail.position.x = -0.55;
   g.add(handle, tail);
   for (const x of [-0.31, -0.27, 0.66]) {
@@ -289,7 +293,7 @@ export function dressWindow(kit: Kit, d: PlacedDisplay, theme: DisplayTheme, rng
     put(kit, 'dio:pool', a, 0, 0.585, z, { x: 1.1, y: 1.1, z: 1 }, C(0xfff0d0).multiplyScalar(1.6), new THREE.Euler(-Math.PI / 2, 0, 0));
     const holder = new THREE.Group();
     holder.userData.keep = true;
-    holder.position.set(0, 0.95, z);
+    holder.position.set(0, 1.05, z);
     const broom = nimbus(kit);
     broom.scale.setScalar(1.35);
     holder.add(broom);
@@ -300,7 +304,7 @@ export function dressWindow(kit: Kit, d: PlacedDisplay, theme: DisplayTheme, rng
     animators.push({
       update(_dt, t) {
         broom.position.y = 0.06 * Math.sin(t * 1.3);
-        broom.rotation.set(0.04 * Math.sin(t * 0.9), 0.35 * Math.sin(t * 0.25), 0.06 * Math.sin(t * 1.1));
+        broom.rotation.set(0.04 * Math.sin(t * 0.9), 0.55 + 0.35 * Math.sin(t * 0.25), 0.08 + 0.06 * Math.sin(t * 1.1));
       },
     });
   }
