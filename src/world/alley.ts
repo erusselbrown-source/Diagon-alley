@@ -27,6 +27,7 @@ import { createRain } from '../fx/rain';
 import { buildStreetlamps } from '../props/streetlamps';
 import { createLightingRig, type LightingRig } from '../core/lighting';
 import type { PostFX } from '../core/postprocessing';
+import { installExploration, type Exploration } from './interaction';
 
 export interface AlleyContext {
   renderer: THREE.WebGLRenderer;
@@ -46,6 +47,8 @@ export interface AlleyWorld {
   /** Placed shops (side, s0, frontage, name). */
   shops: { name: string; side: string; s0: number; frontage: number }[];
   lighting: LightingRig;
+  /** Walk / tour camera, wand, audio, overlay. */
+  exploration: Exploration;
 }
 
 const MATERIALS: MaterialId[] = [
@@ -79,7 +82,6 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   ctx.camera.position.copy(archway.viewpoint.position);
   ctx.controls.target.copy(archway.viewpoint.target);
   ctx.controls.update();
-  const hint = installArchwayInteraction(ctx, archway);
 
   // ---- Knockturn mouth, alcoves, stoops -----------------------------------------
   const side = buildSideAlleys(STREET, lib);
@@ -165,8 +167,15 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   console.info('[alley] build stats', stats);
   overlay.done();
 
+  const exploration = installExploration({
+    renderer, scene, camera: ctx.camera, orbit: ctx.controls, layout: STREET, archway, kit, lamps,
+    footprints: clutter.footprints, lighting, shops: shops.names,
+  });
   const folder = gui.addFolder('Alley');
   folder.add({ toggleArch: () => archway.trigger() }, 'toggleArch').name('open / close archway');
+  folder.close();
+  gui.close();
+  exploration.present();
 
   const world: AlleyWorld = {
     stats,
@@ -174,8 +183,10 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
     debugTime: null,
     shops: shops.names,
     lighting,
+    exploration,
     update(dt, clock) {
       const elapsed = world.debugTime ?? clock;
+      exploration.explorer.update(dt);
       surface.update(elapsed);
       for (const a of animators) a.update(dt, elapsed);
       const vh = renderer.getDrawingBufferSize(tmpSize).y;
@@ -187,46 +198,8 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
       surface.puddles.setRain(0.25 + 0.75 * lighting.current.rain);
       ctx.post.update(elapsed);
       archway.update(dt);
-      hint.update();
+      exploration.update(dt, clock);
     },
   };
   return world;
-}
-
-/** Click the wall (or press E nearby) to open/close the archway. */
-function installArchwayInteraction(ctx: AlleyContext, archway: EntryArchway): { update(): void } {
-  const { renderer, camera } = ctx;
-  const ray = new THREE.Raycaster();
-  const ndc = new THREE.Vector2();
-  let down: { x: number; y: number } | null = null;
-  const el = renderer.domElement;
-  el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
-  el.addEventListener('pointerup', (e) => {
-    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return; // a drag, not a click
-    const r = el.getBoundingClientRect();
-    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObject(archway.bricks, false)[0];
-    if (hit) archway.trigger(hit.point);
-  });
-  window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() !== 'e' || e.repeat) return;
-    if (camera.position.distanceTo(archway.center) < 9) archway.trigger();
-  });
-
-  const hint = document.createElement('div');
-  Object.assign(hint.style, {
-    position: 'fixed', left: '50%', bottom: '28px', transform: 'translateX(-50%)', zIndex: '10',
-    font: '13px Georgia, serif', letterSpacing: '0.04em', color: '#f3dcb2', padding: '8px 16px',
-    background: 'rgba(12,9,6,0.62)', border: '1px solid rgba(243,220,178,0.25)', borderRadius: '18px',
-    pointerEvents: 'none', transition: 'opacity 0.6s',
-  } satisfies Partial<CSSStyleDeclaration>);
-  hint.textContent = 'Tap the bricks — or press E — to open the way';
-  document.body.appendChild(hint);
-  return {
-    update() {
-      const near = camera.position.distanceTo(archway.center) < 9;
-      hint.style.opacity = near && !archway.open && !archway.animating ? '1' : '0';
-    },
-  };
 }

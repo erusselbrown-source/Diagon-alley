@@ -20,7 +20,9 @@ import { CURB_WIDTH, type Side, type StreetLayout } from '../architecture/street
 import type { SteamEmitter } from '../fx/steam';
 import { propKind, trunkStack } from './displays';
 
-export interface StreetClutter { group: THREE.Group; steam: SteamEmitter[]; animators: Animator[]; stats: Record<string, number> }
+/** A pavement footprint measured from the building line (for walk collision). */
+export interface ClutterFootprint { side: Side; s0: number; s1: number; depth: number }
+export interface StreetClutter { group: THREE.Group; steam: SteamEmitter[]; animators: Animator[]; stats: Record<string, number>; footprints: ClutterFootprint[] }
 
 const C = (h: number) => new THREE.Color(h);
 const merge = (...gs: THREE.BufferGeometry[]) => mergeGeometries(gs.map((g) => normalizeForMerge(g)))!;
@@ -88,6 +90,7 @@ export function scatterStreetClutter(kit: Kit, layout: StreetLayout, posts: read
   const animators: Animator[] = [];
   const stats: Record<string, number> = { trunks: 0, barrels: 0, cauldrons: 0, aframes: 0, cages: 0, weeds: 0 };
   const cagePoints: THREE.Matrix4[] = [];
+  const footprints: ClutterFootprint[] = [];
 
   const anchorAt = (s: number, side: Side, inset: number, along = 0): THREE.Object3D => {
     const tr = layout.getStreetTransform(s / layout.length, side, -inset);
@@ -123,6 +126,7 @@ export function scatterStreetClutter(kit: Kit, layout: StreetLayout, posts: read
         continue;
       }
       taken.push([s, s + fp]);
+      footprints.push({ side, s0: s - 0.05, s1: s + fp + 0.05, depth: 0.78 });
       if (kind === 'barrels') {
         const n = Math.max(2, Math.round(fp / 0.56));
         const a = anchorAt(mid, side, 0.34);
@@ -206,5 +210,5 @@ export function scatterStreetClutter(kit: Kit, layout: StreetLayout, posts: read
     },
   });
   animators[0].update(0, 0);
-  return { group, steam, animators, stats };
+  return { group, steam, animators, stats, footprints };
 }

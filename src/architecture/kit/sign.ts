@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GeometryBucket, chamferBox, normalizeForMerge } from './geometry';
-import type { Animator, Kit } from './context';
+import type { Animator, Kit, Swingable } from './context';
 import { letteringMaterial, type LetteringOptions } from './lettering';
 
 export interface HangingSignOptions {
@@ -24,7 +24,7 @@ export interface HangingSignOptions {
   rigid?: boolean;
 }
 
-export interface HangingSign extends Animator {
+export interface HangingSign extends Animator, Swingable {
   group: THREE.Group;
   pivot: THREE.Group;
 }
@@ -104,8 +104,10 @@ export function buildHangingSign(kit: Kit, o: HangingSignOptions): HangingSign {
   const g = 9.81, len = o.length ?? 0.55, damp = 1.1, windK = o.wind ?? 1;
   const ph = [kit.rng.range(0, 6.28), kit.rng.range(0, 6.28), kit.rng.range(0, 6.28)];
   let th = kit.rng.range(-0.05, 0.05), om = 0;
-  return {
+  const sign: HangingSign = {
     group, pivot,
+    kick(v) { if (!o.rigid) om += v; },
+    get speed() { return Math.abs(om); },
     update(dt, t) {
       if (o.rigid) return;
       const steps = 3, h = Math.min(dt, 0.05) / steps;
@@ -117,7 +119,10 @@ export function buildHangingSign(kit: Kit, o: HangingSignOptions): HangingSign {
         om += acc * h;
         th += om * h;
       }
+      th = Math.max(-1.2, Math.min(1.2, th)); // the arm stops a full loop
       pivot.rotation.z = th;
     },
   };
+  if (!o.rigid) { pivot.userData.sign = sign; kit.signs.push(sign); }
+  return sign;
 }

@@ -28,6 +28,13 @@ export interface Streetlamps extends Animator {
   setLevel(level: number): void;
   /** Where each lamp stands, so street clutter can keep clear of the posts. */
   sites: { side: 'left' | 'right'; s: number }[];
+  /** Ground positions of the posts (collision). */
+  posts: THREE.Vector3[];
+  /** Nearest lamp the ray passes through (lantern or post), or null. */
+  pick(ray: THREE.Ray, maxDistance?: number): { index: number; distance: number; point: THREE.Vector3 } | null;
+  /** Lumos / Nox: toggle one lamp with a flash. Returns the new state (true = lit). */
+  toggle(index: number): boolean;
+  isLit(index: number): boolean;
 }
 
 const lathe = (pts: number[][], seg = 16) => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), seg);
@@ -151,6 +158,10 @@ export function buildStreetlamps(kit: Kit, layout: StreetLayout): Streetlamps {
   const mantles = spots.map((m) => new THREE.Vector3(0, MANTLE_Y, 0).applyMatrix4(m));
   const phases = spots.map(() => [rng.range(0, 100), rng.range(0, 100), rng.range(0.7, 1.3)]);
   const flicker = new Float32Array(n).fill(1);
+  const lit = new Float32Array(n).fill(1), litTarget = new Float32Array(n).fill(1), flash = new Float32Array(n);
+  const posts = spots.map((m) => new THREE.Vector3().setFromMatrixPosition(m));
+  const white = new THREE.Color(0.75, 0.9, 1.0);
+  const seg0 = new THREE.Vector3(), seg1 = new THREE.Vector3(), hit = new THREE.Vector3();
   let level = 1;
   const amber = new THREE.Color(1.0, 0.62, 0.26);
   const sources: LightSource[] = mantles.map((p, i) => ({
@@ -158,14 +169,39 @@ export function buildStreetlamps(kit: Kit, layout: StreetLayout): Streetlamps {
     color: amber.clone(),
     distance: 15,
     decay: 1.7,
-    intensity: () => 10 * flicker[i] * level,
+    intensity: () => 10 * (flicker[i] * level * lit[i] + 1.6 * flash[i]),
   }));
-  const c = new THREE.Color();
+  const c = new THREE.Color(), tmpC = new THREE.Color();
 
   return {
     group, sources, mantles, sites,
+    posts,
     setLevel(l) { level = l; },
-    update(_dt, t) {
+    isLit: (i) => litTarget[i] > 0.5,
+    toggle(i) {
+      litTarget[i] = litTarget[i] > 0.5 ? 0 : 1;
+      flash[i] = litTarget[i] ? 1.6 : 0.9; // Lumos blooms bright; Nox gives a last puff
+      return litTarget[i] > 0.5;
+    },
+    pick(ray, maxDistance = 45) {
+      let best: { index: number; distance: number; point: THREE.Vector3 } | null = null;
+      for (let i = 0; i < n; i++) {
+        const lantern = mantles[i];
+        const d0 = ray.origin.distanceTo(lantern);
+        if (d0 > maxDistance + 1) continue;
+        // generous lantern sphere (aiming at a small lantern from 20 m is hard) and a thin post capsule
+        const tol = 0.38 + d0 * 0.012;
+        const along = lantern.clone().sub(ray.origin).dot(ray.direction);
+        let dist = Infinity;
+        if (along > 0 && ray.distanceSqToPoint(lantern) < tol * tol) dist = along;
+        seg0.copy(posts[i]); seg1.copy(lantern);
+        if (ray.distanceSqToSegment(seg0, seg1, undefined, hit) < 0.2 * 0.2) dist = Math.min(dist, ray.origin.distanceTo(hit));
+        if (dist < maxDistance && (!best || dist < best.distance)) best = { index: i, distance: dist, point: ray.at(dist, new THREE.Vector3()) };
+      }
+      return best;
+    },
+    update(dt, t) {
+      const kLit = 1 - Math.exp(-dt * 5), kFlash = Math.exp(-dt * 3.2);
       for (let i = 0; i < n; i++) {
         const [a, b, sp] = phases[i];
         // gas mantle: gentle breathing + quick jitter + rare sputter
@@ -173,10 +209,12 @@ export function buildStreetlamps(kit: Kit, layout: StreetLayout): Streetlamps {
         const sput = Math.sin(t * 0.31 + a) > 0.985 ? 0.55 + 0.45 * Math.abs(Math.sin(t * 40 + b)) : 1;
         f *= sput;
         flicker[i] = f;
-        const k = f * level;
-        mantle.setColorAt(i, c.copy(amber).multiplyScalar(5.5 * k).addScalar(0.4 * k));
-        glass.setColorAt(i, c.copy(amber).multiplyScalar(1.15 * k));
-        cones.setColorAt(i, c.copy(amber).multiplyScalar(1.0 * k));
+        lit[i] += (litTarget[i] - lit[i]) * kLit;
+        flash[i] *= kFlash;
+        const k = f * level * lit[i], fl = flash[i];
+        mantle.setColorAt(i, c.copy(amber).multiplyScalar(5.5 * k).addScalar(0.4 * k + 0.05).add(tmpC.copy(white).multiplyScalar(6 * fl)));
+        glass.setColorAt(i, c.copy(amber).multiplyScalar(1.15 * k + 0.08).add(tmpC.copy(white).multiplyScalar(1.2 * fl)));
+        cones.setColorAt(i, c.copy(amber).multiplyScalar(1.0 * k).add(tmpC.copy(white).multiplyScalar(0.9 * fl)));
       }
       mantle.instanceColor!.needsUpdate = glass.instanceColor!.needsUpdate = cones.instanceColor!.needsUpdate = true;
     },

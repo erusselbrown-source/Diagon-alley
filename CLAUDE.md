@@ -6,14 +6,14 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 
 | Folder | Responsibility |
 |---|---|
-| `src/core/` | Scene, renderer, camera, `lighting.ts` (key/bounce rig, `LightPool`, atmosphere presets, lightning), `postprocessing.ts` (bloom + film pass), debug HUD, seeded random (`SeededRandom`) |
+| `src/core/` | Scene, renderer, camera, `controls.ts` (`ExplorerControls`: walk / tour / dev orbit), `overlay.ts` (title card, hint, crosshair, letterbox, toasts), `lighting.ts` (key/bounce rig, `LightPool`, atmosphere presets, lightning), `postprocessing.ts` (bloom + film pass), debug HUD, seeded random (`SeededRandom`) |
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
 | `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`, `gringotts.ts` + `gringottsDragon.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
 | `src/props/` | `displays.ts` (prop kinds, `fillDisplay` front risers, book towers, trunks), `dioramas.ts` (`dressWindow`: 1.5 m glowing window interiors + specials), `streetClutter.ts` (collision-aware pavement clutter, caged owls, weeds), `streetlamps.ts` (instanced cast-iron gas lamps, mantles, light cones) |
-| `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards), `steam.ts` (cauldron steam), `sky.ts` (gradient sky dome: clouds, stars, moon/sun, lightning flash), `rain.ts` (GPU rain streaks), `ambientMagic.ts` (paper planes, notices, lantern motes, owl flock) |
-| `src/audio/` | Procedural Web Audio soundscapes (`AudioEngine`) |
-| `src/world/` | Scene assembly (`alley.ts`): loads materials, builds street + features, interaction |
+| `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards), `steam.ts` (cauldron steam), `sky.ts` (gradient sky dome: clouds, stars, moon/sun, lightning flash), `rain.ts` (GPU rain streaks), `wand.ts` (first-person wand, spell bolts, spark pool, fireworks), `ambientMagic.ts` (paper planes, notices, lantern motes, owl flock) |
+| `src/audio/` | Procedural Web Audio: `AudioEngine` + `soundscape.ts` (crowd, wind, rain beds; spatial owls, creaks, footsteps, spell chimes, fireworks, thunder) |
+| `src/world/` | Scene assembly (`alley.ts`), `interaction.ts` (wires explorer, wand targets, audio, overlay, keys), `walkArea.ts` (walkable corridors for collision + wand ray-marching), `tour.ts` (cinematic crane keyframes) |
 
 ### Materials
 
@@ -40,6 +40,15 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - **Point lights go through the pool.** It keeps a fixed 14 `PointLight`s (no shader recompiles) and assigns them to the nearest/in-frustum `LightSource`s with fades. Publish a `LightSource` (lamps do) or add a plain `PointLight` — `adoptPointLights` hides it and drives it through the pool. Never add always-on point lights outside it.
 - Presets (`PRESETS`: Misty Blue Hour default, Golden Autumn Sunset, Midnight Storm) cross-fade sky, key, fog, exposure, bloom, lamp level, street wetness, rain and lightning. Add atmosphere state there, not ad hoc.
 - Post: `RenderPass → UnrealBloomPass (threshold ≈ 1 in HDR, so only emitters bloom) → film pass (vignette, grain, chromatic aberration) → OutputPass`. Keep marble/plaster albedo below the bloom threshold.
+
+### Exploration, wand & audio
+
+- Navigation goes through `ExplorerControls` (`core/controls.ts`); `main.ts` must not call `OrbitControls.update()` once the alley exists (orbit is only the dev/idle mode, key O). Walk mode reads a `WalkArea`; tour mode plays `TourKey`s through damped springs.
+- **Collision lives in `world/walkArea.ts`.** New walkable spaces (a lane, a courtyard, a staircase) must be added there; new pavement obstacles publish footprints (as `streetClutter` does) or posts (as `streetlamps` do).
+- Wand interactions are `WandTarget`s in `world/interaction.ts`: return the nearest hit along the ray and do the effect in `apply()` (runs when the bolt arrives). Swinging signs register themselves in `kit.signs`; lamps expose `pick` / `toggle`.
+- Glowing particles share the wand's one additive spark pool; transient lights (bolt, impact, fireworks) are `LightSource`s in the pool, never new `PointLight`s.
+- Audio is synthesized only, starts from the title-card click (a user gesture), and is driven from world state (`setWeather` from the preset, `onStrike` thunder, footsteps from head-bob).
+- The first-person viewmodel is a child of the camera, drawn in the transparent pass at `renderOrder` 1000 with depth test off.
 
 ### Building kit (`src/architecture/kit.ts`)
 

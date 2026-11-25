@@ -186,6 +186,8 @@ export interface LightingRig {
   installGui(gui: GUI): void;
   /** Trigger a lightning burst at scene time `t` (also handy for screenshots). */
   strike(t: number): void;
+  /** Called when a lightning burst starts (thunder). */
+  onStrike?: () => void;
 }
 
 export function createLightingRig(o: LightingRigOptions): LightingRig {
@@ -278,7 +280,7 @@ export function createLightingRig(o: LightingRigOptions): LightingRig {
       // Lightning: bursts of 2–3 pulses every 5–12 s, washing Gringotts.
       let flash = 0;
       if (A.lightning > 0.01) {
-        if (t > nextStrike) { strikeT = t; nextStrike = t + 5 + Math.random() * 7; }
+        if (t > nextStrike) { strikeT = t; nextStrike = t + 5 + Math.random() * 7; rig.onStrike?.(); }
         const s = t - strikeT;
         if (s >= 0 && s < 0.9) flash = Math.exp(-s * 18) + 0.7 * Math.exp(-Math.max(0, s - 0.18) * 22) * (s > 0.18 ? 1 : 0) + 0.5 * Math.exp(-Math.max(0, s - 0.45) * 14) * (s > 0.45 ? 1 : 0);
         flash *= A.lightning;
@@ -287,7 +289,7 @@ export function createLightingRig(o: LightingRigOptions): LightingRig {
       sky.state.flash = flash * 0.7;
       pool.update(camera, dt);
     },
-    strike(t) { strikeT = t; nextStrike = t + 5 + Math.random() * 7; },
+    strike(t) { strikeT = t; nextStrike = t + 5 + Math.random() * 7; rig.onStrike?.(); },
     installGui(gui) {
       const f = gui.addFolder('Atmosphere');
       const ui = { get preset() { return rig.preset; }, set preset(v: PresetName) { rig.setPreset(v); } };

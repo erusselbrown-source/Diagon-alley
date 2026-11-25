@@ -47,6 +47,10 @@ export interface EntryArchway {
   viewpoint: { position: THREE.Vector3; target: THREE.Vector3 };
   readonly open: boolean;
   readonly animating: boolean;
+  /** Courtyard frame (local → world): origin at the wall on the street centreline, +Z into the courtyard. */
+  frame: THREE.Matrix4;
+  /** Courtyard dimensions in the local frame. */
+  dims: { wallHalf: number; openHalf: number; depth: number; floorY: number };
   /** Toggle open/closed; `originWorld` is where the wall was tapped. */
   trigger(originWorld?: THREE.Vector3): void;
   update(dt: number): void;
@@ -465,6 +469,8 @@ export function buildEntryArchway(layout: StreetLayout, lib: MaterialLibrary): E
     group,
     bricks: mesh,
     center: toWorld(0, 2.2, 0),
+    frame: group.matrix.clone(),
+    dims: { wallHalf: WALL_HALF, openHalf: OPEN_HALF, depth: COURT_DEPTH, floorY: FLOOR_Y },
     viewpoint: { position: toWorld(1.1, 1.7, 6.3), target: toWorld(-0.2, 2.1, 0) },
     get open() { return isOpenState; },
     get animating() { return dir !== 0; },

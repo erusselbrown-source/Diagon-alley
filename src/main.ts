@@ -50,8 +50,8 @@ renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.1);
   debug?.update(dt, timer.getElapsed());
-  alley?.update(dt, timer.getElapsed());
-  controls.update();
+  if (alley) alley.update(dt, timer.getElapsed()); // drives the explorer (walk / tour / orbit)
+  else controls.update();
   hud.beginFrame();
   post.composer.render();
   hud.endFrame();

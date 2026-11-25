@@ -7,12 +7,22 @@ import { KitMaterials } from './materials';
 
 export interface SmokeEmitter { anchor: THREE.Object3D; local: THREE.Vector3 }
 export interface Animator { update(dt: number, elapsed: number): void }
+/** A hanging sign that can be pushed (wand impulse) and heard (creaks). */
+export interface Swingable {
+  pivot: THREE.Object3D;
+  /** Add angular velocity (rad/s). */
+  kick(omega: number): void;
+  /** Current angular speed (rad/s). */
+  readonly speed: number;
+}
 
 export class Kit {
   readonly mats: KitMaterials;
   readonly instances = new InstanceCollector();
   readonly smoke: SmokeEmitter[] = [];
   readonly animators: Animator[] = [];
+  /** Every swinging sign built through the kit (wand targets, creak sources). */
+  readonly signs: Swingable[] = [];
   rng: SeededRandom;
 
   constructor(readonly lib: MaterialLibrary, readonly seed = 'diagon-alley:kit') {
