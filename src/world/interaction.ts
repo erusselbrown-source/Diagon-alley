@@ -11,6 +11,8 @@ import * as THREE from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ExplorerControls } from '../core/controls';
 import { Overlay } from '../core/overlay';
+import { IS_TOUCH } from '../core/device';
+import { TouchControls } from '../core/touchControls';
 import { PRESETS, type LightingRig, type PresetName } from '../core/lighting';
 import { createWand, type Wand, type WandHit, type WandTarget } from '../fx/wand';
 import { Soundscape } from '../audio/soundscape';
@@ -57,10 +59,10 @@ export function installExploration(d: ExplorationDeps): Exploration {
   const gMatrix = L.gringottsSite().matrix;
   const area = createWalkArea({ layout: L, archway, gringotts: gMatrix, footprints: d.footprints, posts: lamps.posts });
   const explorer = new ExplorerControls({ camera, dom: renderer.domElement, orbit: d.orbit, area });
-  const overlay = new Overlay();
+  const overlay = new Overlay(IS_TOUCH);
   const audio = new Soundscape();
   let entered = false;
-  let lockFailed = false;
+  let lockFailed = IS_TOUCH; // no pointer lock on phones: taps cast directly
   document.addEventListener('pointerlockerror', () => { lockFailed = true; });
 
   // Archway: every trigger gets its brick cascade sound.
@@ -180,6 +182,7 @@ export function installExploration(d: ExplorationDeps): Exploration {
 
   // ---- Modes -----------------------------------------------------------------------
   explorer.onModeChange = (m) => {
+    touch?.setTouring(m === 'tour');
     wand.showViewmodel(m === 'walk');
     overlay.setWalking(m === 'walk');
     overlay.setLetterbox(m === 'tour');
@@ -193,6 +196,24 @@ export function installExploration(d: ExplorationDeps): Exploration {
     if (explorer.mode === 'tour') explorer.setMode('walk');
     else { explorer.exitLock(); explorer.startTour(tour()); }
   };
+
+  const weatherNames = Object.keys(PRESETS) as PresetName[];
+  const setWeather = (name: PresetName) => { lighting.setPreset(name); overlay.toast(name, 'rgba(243,220,178,0.6)'); };
+  const toggleMute = () => { audio.setMuted(!audio.isMuted); overlay.toast(audio.isMuted ? 'Sound off' : 'Sound on', 'rgba(243,220,178,0.6)'); return audio.isMuted; };
+
+  // ---- Touch (iPhone / iPad) -----------------------------------------------------------
+  const touch = IS_TOUCH ? new TouchControls(explorer.stick, {
+    onLook: (dx, dy) => explorer.addLook(dx, dy),
+    onTap: (x, y) => {
+      if (explorer.mode !== 'walk') return;
+      const r = renderer.domElement.getBoundingClientRect();
+      raycaster.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1), camera);
+      wand.cast(raycaster.ray.clone());
+    },
+    onTour: () => toggleTour(),
+    onWeather: () => setWeather(weatherNames[(weatherNames.indexOf(lighting.preset) + 1) % weatherNames.length]),
+    onMute: toggleMute,
+  }) : null;
 
   const centreRay = () => { raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); return raycaster.ray.clone(); };
 
@@ -218,24 +239,22 @@ export function installExploration(d: ExplorationDeps): Exploration {
     if (!entered || e.repeat || e.metaKey || e.ctrlKey) return;
     const k = e.key.toLowerCase();
     if (k === 'c') toggleTour();
-    else if (k === 'm') { audio.setMuted(!audio.isMuted); overlay.toast(audio.isMuted ? 'Sound off' : 'Sound on', 'rgba(243,220,178,0.6)'); }
+    else if (k === 'm') toggleMute();
     else if (k === 'e' && camera.position.distanceTo(archway.center) < 9) archway.trigger();
     else if (k === 'o') explorer.setMode(explorer.mode === 'orbit' ? 'walk' : 'orbit');
     else if (k === '1' || k === '2' || k === '3') {
-      const name = (Object.keys(PRESETS) as PresetName[])[+k - 1];
-      lighting.setPreset(name);
-      overlay.toast(name, 'rgba(243,220,178,0.6)');
+      setWeather(weatherNames[+k - 1]);
     }
   });
 
   // Archway prompt
   const prompt = document.createElement('div');
   Object.assign(prompt.style, {
-    position: 'fixed', left: '50%', bottom: '74px', transform: 'translateX(-50%)', zIndex: '10',
+    position: 'fixed', left: '50%', bottom: IS_TOUCH ? 'calc(env(safe-area-inset-bottom, 0px) + 96px)' : '74px', transform: 'translateX(-50%)', zIndex: '10', textAlign: 'center',
     font: `italic 14px 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif`, letterSpacing: '0.05em', color: '#f3dcb2',
     textShadow: '0 1px 4px rgba(0,0,0,0.9)', pointerEvents: 'none', transition: 'opacity 0.6s', opacity: '0',
   } satisfies Partial<CSSStyleDeclaration>);
-  prompt.textContent = 'Cast a spell at the bricks — or press E — to open the way';
+  prompt.textContent = IS_TOUCH ? 'Tap the bricks to open the way' : 'Cast a spell at the bricks — or press E — to open the way';
   document.body.appendChild(prompt);
 
   let weatherT = 0;
@@ -248,7 +267,8 @@ export function installExploration(d: ExplorationDeps): Exploration {
         entered = true;
         void audio.start();
         explorer.setMode('walk');
-        explorer.requestLock();
+        if (IS_TOUCH) touch!.setEnabled(true);
+        else explorer.requestLock();
       });
     },
     castCentre: () => wand.cast(centreRay()),

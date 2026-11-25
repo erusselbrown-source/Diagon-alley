@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import GUI from 'lil-gui';
 import {
   createRenderer, createCamera, createScene, createPlaceholderGround,
-  createPostProcessing, DebugHud,
+  createPostProcessing, DebugHud, IS_TOUCH,
 } from './core';
 import type { DebugHandle } from './debug/materialsDebug';
 import { buildAlley, type AlleyWorld } from './world/alley';
@@ -17,6 +17,11 @@ const post = createPostProcessing(renderer, scene, camera);
 const hud = new DebugHud(renderer);
 
 const gui = new GUI({ title: 'Debug' });
+if (IS_TOUCH) gui.hide(); // phones: on-screen buttons replace the panel
+
+/** Portrait phones get a wider vertical field of view so the street isn't a keyhole. */
+const fitFov = () => { camera.fov = camera.aspect < 1 ? 72 : 55; camera.updateProjectionMatrix(); };
+fitFov();
 
 let debug: DebugHandle | null = null;
 if (params.get('debug') === 'materials') {
@@ -38,7 +43,7 @@ if (!debug) {
 function onResize(): void {
   const w = container.clientWidth, h = container.clientHeight;
   camera.aspect = w / h;
-  camera.updateProjectionMatrix();
+  fitFov();
   renderer.setSize(w, h);
   post.setSize(w, h);
   debug?.resize(w, h);

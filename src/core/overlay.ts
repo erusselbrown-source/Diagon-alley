@@ -62,7 +62,7 @@ export class Overlay {
   private hintTimer = 0;
   private toastTimer = 0;
 
-  constructor() {
+  constructor(private readonly touch = false) {
     const style = document.createElement('style');
     style.textContent = `
       @keyframes da-pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
@@ -87,16 +87,19 @@ export class Overlay {
     el('div', { font: `600 clamp(34px, 7vw, 54px) ${SERIF}`, letterSpacing: '0.16em', lineHeight: '1.05', textShadow: '0 1px 0 rgba(255,240,210,0.5)' }, card, 'DIAGON&nbsp;ALLEY');
     el('div', { margin: '16px auto 18px', width: '62%', height: '12px', opacity: '0.65' }, card,
       `<svg viewBox="0 0 200 12" width="100%" height="12"><path d="M0 6 H84 M116 6 H200" stroke="#5a3814" stroke-width="0.8"/><path d="M100 1 L105 6 L100 11 L95 6 Z" fill="#5a3814"/><circle cx="88" cy="6" r="1.4" fill="#5a3814"/><circle cx="112" cy="6" r="1.4" fill="#5a3814"/></svg>`);
-    el('div', { font: `16px ${SERIF}`, letterSpacing: '0.24em', textTransform: 'uppercase', animation: 'da-pulse 2.4s ease-in-out infinite' }, card, 'Click to Enter');
+    el('div', { font: `16px ${SERIF}`, letterSpacing: '0.24em', textTransform: 'uppercase', animation: 'da-pulse 2.4s ease-in-out infinite' }, card, touch ? 'Tap to Enter' : 'Click to Enter');
     el('div', { font: `italic 12px ${SERIF}`, opacity: '0.6', marginTop: '14px' }, card, 'sound on &middot; headphones recommended');
 
     // ---- Controls hint
     this.hint = el('div', {
-      position: 'absolute', left: '50%', bottom: '18px', transform: 'translateX(-50%)', display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center',
+      position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: touch ? '6px 14px' : '16px', flexWrap: 'wrap', justifyContent: 'center',
+      ...(touch ? { top: 'calc(env(safe-area-inset-top, 0px) + 64px)' } : { bottom: '18px' }),
       padding: '8px 16px', borderRadius: '20px', background: 'rgba(12,9,6,0.5)', border: '1px solid rgba(243,220,178,0.16)',
       font: `12px ${SERIF}`, color: 'rgba(243,226,196,0.9)', letterSpacing: '0.04em', opacity: '0', transition: 'opacity 1.2s ease', maxWidth: '92vw',
     }, this.root, [
-      [key('WASD'), 'Move'], [key('Click'), 'Cast Spell'], [key('C'), 'Cinematic Tour'], [key('1/2/3'), 'Weather'], [key('M'), 'Mute'],
+      ...(touch
+        ? [[key('Left thumb'), 'Move'], [key('Drag'), 'Look'], [key('Tap'), 'Cast Spell']]
+        : [[key('WASD'), 'Move'], [key('Click'), 'Cast Spell'], [key('C'), 'Cinematic Tour'], [key('1/2/3'), 'Weather'], [key('M'), 'Mute']]),
     ].map(([k, t]) => `<span style="white-space:nowrap">${k}${t}</span>`).join(''));
 
     // ---- Paused notice (pointer lock released)
@@ -118,8 +121,8 @@ export class Overlay {
       transform: `translateY(${side === 'top' ? '-100%' : '100%'})`, transition: 'transform 1.1s cubic-bezier(.6,0,.2,1)',
     } as Partial<CSSStyleDeclaration>, this.root));
     el('div', {
-      position: 'absolute', right: '24px', bottom: '50%', transform: 'translateY(50%)', color: 'rgba(243,220,178,0.55)', font: `italic 12px ${SERIF}`, letterSpacing: '0.18em',
-    }, this.bars[1], 'Cinematic Tour &middot; press C to walk');
+      position: 'absolute', right: '24px', bottom: touch ? '12px' : '50%', transform: touch ? 'none' : 'translateY(50%)', color: 'rgba(243,220,178,0.55)', font: `italic 12px ${SERIF}`, letterSpacing: '0.18em',
+    }, this.bars[touch ? 0 : 1], touch ? 'Cinematic Tour &middot; tap Walk to explore' : 'Cinematic Tour &middot; press C to walk');
 
     // ---- Toast (spell names, weather)
     this.toastEl = el('div', {
@@ -156,7 +159,7 @@ export class Overlay {
     this.hintTimer = window.setTimeout(() => { this.hint.style.opacity = '0.32'; }, 7000);
   }
 
-  setWalking(on: boolean): void { this.crosshair.style.opacity = on ? '1' : '0'; }
+  setWalking(on: boolean): void { this.crosshair.style.opacity = on && !this.touch ? '1' : '0'; }
   setPaused(on: boolean): void { this.paused.style.opacity = on ? '1' : '0'; if (on) this.showHint(); }
 
   setLetterbox(on: boolean): void {

@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three';
 import type GUI from 'lil-gui';
+import { QUALITY } from './device';
 import type { PostFX } from './postprocessing';
 import type { Sky } from '../fx/sky';
 import type { Rain } from '../fx/rain';
@@ -200,7 +201,7 @@ export function createLightingRig(o: LightingRigOptions): LightingRig {
   if (!sun || !hemi) throw new Error('createLightingRig: scene needs a DirectionalLight and a HemisphereLight');
   const key = sun, bounce = hemi;
   scene.add(key.target);
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(QUALITY.shadowMap, QUALITY.shadowMap);
   key.shadow.radius = 3;
   const SH = 36;
   Object.assign(key.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 1, far: 160 });
@@ -212,7 +213,7 @@ export function createLightingRig(o: LightingRigOptions): LightingRig {
   lightning.target.position.copy(o.lightningTarget);
   scene.add(lightning, lightning.target);
 
-  const pool = new LightPool(scene, o.poolSize ?? 14);
+  const pool = new LightPool(scene, o.poolSize ?? QUALITY.lightPool);
   const fog = scene.fog as THREE.FogExp2;
   let from = cloneAtmo(PRESETS['Misty Blue Hour']);
   let to = cloneAtmo(PRESETS['Misty Blue Hour']);

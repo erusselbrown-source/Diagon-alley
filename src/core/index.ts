@@ -1,4 +1,5 @@
 export * from './random';
+export * from './device';
 export * from './renderer';
 export * from './camera';
 export * from './scene';

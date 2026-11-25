@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { QUALITY } from './device';
 
 export const MAX_PIXEL_RATIO = 2;
 
@@ -14,7 +15,7 @@ export function createRenderer(container: HTMLElement): THREE.WebGLRenderer {
     powerPreference: 'high-performance',
     stencil: false,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO, QUALITY.maxPixelRatio));
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;

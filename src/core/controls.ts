@@ -58,6 +58,8 @@ export class ExplorerControls {
   locked = false;
   /** Walk-mode input suspended (title card / paused). */
   frozen = false;
+  /** Analog stick input from touch controls: x = strafe right, y = forward, each −1..1. */
+  readonly stick = { x: 0, y: 0 };
 
   onModeChange?: (mode: CameraMode) => void;
   onLockChange?: (locked: boolean) => void;
@@ -115,6 +117,9 @@ export class ExplorerControls {
 
   /** True when the last pointerdown in walk mode turned into a drag-look (so it isn't a click). */
   get wasDrag(): boolean { return !!this.drag?.moved; }
+
+  /** Touch look: drag deltas in CSS pixels. */
+  addLook(dx: number, dy: number): void { if (this.mode === 'walk') this.look(dx, dy, 0.0045); }
 
   private look(dx: number, dy: number, k: number): void {
     this.yawT -= dx * k;
@@ -235,14 +240,22 @@ export class ExplorerControls {
 
   private updateWalk(dt: number): void {
     const k = this.keys;
-    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const r = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
-    const run = k.has('ShiftLeft') || k.has('ShiftRight');
+    let f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+    let r = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    let run = k.has('ShiftLeft') || k.has('ShiftRight');
+    let amount = 1;
+    const stickMag = Math.hypot(this.stick.x, this.stick.y);
+    if (!f && !r && stickMag > 0.08) {
+      // analog stick: gentle near the centre, jogging at full throw
+      f = this.stick.y; r = this.stick.x;
+      amount = Math.min(1, stickMag);
+      run = stickMag > 0.95;
+    }
     const wish = new THREE.Vector3();
     if (!this.frozen && (f || r)) {
       const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
       // forward = (−sin yaw, −cos yaw); right = (cos yaw, −sin yaw)
-      wish.set(-sy * f + cy * r, 0, -cy * f - sy * r).normalize().multiplyScalar(run ? RUN_SPEED : WALK_SPEED);
+      wish.set(-sy * f + cy * r, 0, -cy * f - sy * r).normalize().multiplyScalar((run ? RUN_SPEED : WALK_SPEED) * amount);
     }
     // smooth acceleration / damping
     const rate = wish.lengthSq() > 0 ? 7 : 9;

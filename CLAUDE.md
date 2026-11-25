@@ -6,7 +6,7 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 
 | Folder | Responsibility |
 |---|---|
-| `src/core/` | Scene, renderer, camera, `controls.ts` (`ExplorerControls`: walk / tour / dev orbit), `overlay.ts` (title card, hint, crosshair, letterbox, toasts), `lighting.ts` (key/bounce rig, `LightPool`, atmosphere presets, lightning), `postprocessing.ts` (bloom + film pass), debug HUD, seeded random (`SeededRandom`) |
+| `src/core/` | Scene, renderer, camera, `controls.ts` (`ExplorerControls`: walk / tour / dev orbit), `overlay.ts` (title card, hint, crosshair, letterbox, toasts), `touchControls.ts` + `device.ts` (phone controls and quality tier), `lighting.ts` (key/bounce rig, `LightPool`, atmosphere presets, lightning), `postprocessing.ts` (bloom + film pass), debug HUD, seeded random (`SeededRandom`) |
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
 | `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`, `gringotts.ts` + `gringottsDragon.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
@@ -48,6 +48,7 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - Wand interactions are `WandTarget`s in `world/interaction.ts`: return the nearest hit along the ray and do the effect in `apply()` (runs when the bolt arrives). Swinging signs register themselves in `kit.signs`; lamps expose `pick` / `toggle`.
 - Glowing particles share the wand's one additive spark pool; transient lights (bolt, impact, fireworks) are `LightSource`s in the pool, never new `PointLight`s.
 - Audio is synthesized only, starts from the title-card click (a user gesture), and is driven from world state (`setWeather` from the preset, `onStrike` thunder, footsteps from head-bob).
+- Phones/tablets (`core/device.ts` `IS_TOUCH`) get `core/touchControls.ts` (floating left-thumb joystick feeding `explorer.stick`, drag-look, tap-to-cast at the tapped point, Tour/Weather/Sound buttons) and the lighter `QUALITY` tier (pixel ratio ≤ 1.5, 1024 shadow map, 8 pooled lights). Keep every action reachable by touch.
 - The first-person viewmodel is a child of the camera, drawn in the transparent pass at `renderOrder` 1000 with depth test off.
 
 ### Building kit (`src/architecture/kit.ts`)
