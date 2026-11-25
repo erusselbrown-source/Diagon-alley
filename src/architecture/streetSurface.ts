@@ -19,6 +19,8 @@ export interface StreetSurface {
   puddles: PuddleMaterial;
   stats: Record<string, number>;
   update(elapsed: number): void;
+  /** 0 = dry, 1 = rain-soaked: darker, glossier stone with stronger reflections. */
+  setWetness(wetness: number): void;
 }
 
 const SETT_ROW = 0.122;
@@ -427,5 +429,18 @@ export function buildStreetSurface(layout: StreetLayout, lib: MaterialLibrary): 
   group.add(puddleMesh);
   stats.puddles = puddleCount;
 
-  return { group, puddles, stats, update: (t) => puddles.update(t) };
+  const wetMats = [granite, sandstone, iron] as THREE.MeshStandardMaterial[];
+  const dry = wetMats.map((m) => ({ rough: m.roughness, env: m.envMapIntensity, color: m.color.clone() }));
+  let lastWet = -1;
+  const setWetness = (w: number) => {
+    if (Math.abs(w - lastWet) < 0.002) return;
+    lastWet = w;
+    wetMats.forEach((m, i) => {
+      m.roughness = dry[i].rough * (1 - 0.5 * w);
+      m.envMapIntensity = dry[i].env * (1 + 1.6 * w);
+      m.color.copy(dry[i].color).multiplyScalar(1 - 0.28 * w);
+    });
+  };
+  setWetness(0.55);
+  return { group, puddles, stats, update: (t) => puddles.update(t), setWetness };
 }

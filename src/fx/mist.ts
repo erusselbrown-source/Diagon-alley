@@ -13,6 +13,7 @@ export function createMist(cards: readonly MistCard[], color: THREE.ColorReprese
   const group = new THREE.Group();
   group.name = 'mist';
   const uniforms = { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) } };
+  group.userData.color = uniforms.uColor.value; // tinted by the lighting presets
   const mat = new THREE.ShaderMaterial({
     uniforms,
     transparent: true,

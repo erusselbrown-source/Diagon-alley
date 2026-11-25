@@ -1,13 +1,13 @@
 /**
  * Scene assembly for the alley: loads materials, lays the street, builds the
- * entry courtyard and side features, and adds temporary glow lighting.
+ * entry courtyard and side features, streetlamps, sky and the lighting rig.
  */
 import * as THREE from 'three';
 import type GUI from 'lil-gui';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createNightEnvironment, LoadingOverlay } from '../core';
 import { MaterialLibrary, type MaterialId } from '../materials';
-import { STREET, createFrame } from '../architecture/street';
+import { STREET } from '../architecture/street';
 import { buildStreetSurface } from '../architecture/streetSurface';
 import { buildEntryArchway, type EntryArchway } from '../architecture/entryArchway';
 import { buildSideAlleys } from '../architecture/sideAlleys';
@@ -23,6 +23,10 @@ import { scatterStreetClutter } from '../props/streetClutter';
 import { createSteam } from '../fx/steam';
 import { createSky } from '../fx/sky';
 import { createAmbientMagic } from '../fx/ambientMagic';
+import { createRain } from '../fx/rain';
+import { buildStreetlamps } from '../props/streetlamps';
+import { createLightingRig, type LightingRig } from '../core/lighting';
+import type { PostFX } from '../core/postprocessing';
 
 export interface AlleyContext {
   renderer: THREE.WebGLRenderer;
@@ -30,6 +34,7 @@ export interface AlleyContext {
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
   gui: GUI;
+  post: PostFX;
 }
 
 export interface AlleyWorld {
@@ -40,6 +45,7 @@ export interface AlleyWorld {
   debugTime: number | null;
   /** Placed shops (side, s0, frontage, name). */
   shops: { name: string; side: string; s0: number; frontage: number }[];
+  lighting: LightingRig;
 }
 
 const MATERIALS: MaterialId[] = [
@@ -102,8 +108,13 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   scene.add(mist.object);
   Object.assign(stats, fork.stats);
 
+  // ---- Victorian gas lamps along both curbs and round the plaza -----------------
+  const lamps = buildStreetlamps(kit, STREET);
+  scene.add(lamps.group);
+  stats.streetlamps = lamps.mantles.length;
+
   // ---- Street clutter along curbs & stoops (needs stoops from shop doors) ---------
-  const clutter = scatterStreetClutter(kit, STREET);
+  const clutter = scatterStreetClutter(kit, STREET, lamps.sites);
   scene.add(clutter.group);
   const steam = createSteam(clutter.steam);
   scene.add(steam.object);
@@ -111,13 +122,14 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
 
   scene.add(kit.instances.finalize(scene));
 
-  // ---- Sky, and the living magical layer ---------------------------------------------
-  const moon = new THREE.Vector3(-12, 20, 8);
-  scene.traverse((o) => { if ((o as THREE.DirectionalLight).isDirectionalLight) moon.copy(o.position); });
-  const sky = createSky(moon);
+  // ---- Sky, rain, and the living magical layer --------------------------------------
+  const sky = createSky();
   scene.add(sky.object);
+  const rain = createRain();
+  scene.add(rain.object);
   scene.updateMatrixWorld(true);
-  const lanterns: THREE.Vector3[] = [];
+  // Motes gather round the gas mantles and the warm flames (braziers, lanterns).
+  const lanterns: THREE.Vector3[] = [...lamps.mantles];
   scene.traverse((o) => {
     const l = o as THREE.PointLight;
     if (l.isPointLight && l.intensity > 0 && l.color.r > 0.8 && l.color.b < 0.6) lanterns.push(l.getWorldPosition(new THREE.Vector3()));
@@ -126,15 +138,23 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   scene.add(magic.object);
   stats.lanternMotes = lanterns.length;
 
-  const animators = [...shops.animators, ...kit.animators, ...(bank.animators ?? []), mist, ...clutter.animators, steam, sky, magic];
+  // ---- Lighting rig: moon key, bounce, pooled point lights, presets ------------------
+  const lighting = createLightingRig({
+    scene, renderer, post: ctx.post, sky, rain,
+    setLamps: (l) => lamps.setLevel(l),
+    setWetness: (w) => surface.setWetness(w),
+    mistColors: [mist.object.userData.color as THREE.Color],
+    lightningTarget: new THREE.Vector3().setFromMatrixPosition(STREET.gringottsSite().matrix).add(new THREE.Vector3(0, 8, 0)),
+  });
+  lighting.pool.add(...lamps.sources);
+  stats.pooledSources = lamps.sources.length + lighting.pool.adoptPointLights(scene);
+  lighting.installGui(gui);
+
+  const animators = [...shops.animators, ...kit.animators, ...(bank.animators ?? []), mist, ...clutter.animators, steam, sky, rain, magic, lamps];
   const smoke = createChimneySmoke(kit.smoke.map((e) => e.anchor.localToWorld(e.local.clone())));
   scene.add(smoke.object);
   Object.assign(stats, shops.stats, { stoops: STREET.stoops.length, smokeEmitters: kit.smoke.length });
   console.info('[alley] shops', shops.names.map((n) => `${n.side[0]} ${n.s0.toFixed(1)}+${n.frontage.toFixed(1)} ${n.name}`).join(' | '));
-
-  // ---- Temporary street glow (stand-ins until fx/lanterns) -------------------
-  const glow = addStreetGlow(scene);
-  stats.glowLights = glow;
 
   // Backstop: no zero-length normals anywhere (NaN shading poisons bloom).
   let fixedNormals = 0;
@@ -145,10 +165,7 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
   console.info('[alley] build stats', stats);
   overlay.done();
 
-  const rain = { intensity: 1 };
   const folder = gui.addFolder('Alley');
-  folder.add(rain, 'intensity', 0, 1, 0.01).name('rain ripples').onChange((v: number) => surface.puddles.setRain(v));
-
   folder.add({ toggleArch: () => archway.trigger() }, 'toggleArch').name('open / close archway');
 
   const world: AlleyWorld = {
@@ -156,6 +173,7 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
     archway,
     debugTime: null,
     shops: shops.names,
+    lighting,
     update(dt, clock) {
       const elapsed = world.debugTime ?? clock;
       surface.update(elapsed);
@@ -165,6 +183,9 @@ export async function buildAlley(ctx: AlleyContext): Promise<AlleyWorld> {
       steam.setViewport(vh, ctx.camera.fov);
       magic.setViewport(vh, ctx.camera.fov);
       smoke.update(dt, elapsed);
+      lighting.update(dt, elapsed, ctx.camera);
+      surface.puddles.setRain(0.25 + 0.75 * lighting.current.rain);
+      ctx.post.update(elapsed);
       archway.update(dt);
       hint.update();
     },
@@ -208,30 +229,4 @@ function installArchwayInteraction(ctx: AlleyContext, archway: EntryArchway): { 
       hint.style.opacity = near && !archway.open && !archway.animating ? '1' : '0';
     },
   };
-}
-
-/** Warm floating light-orbs along the street; replaced by instanced lanterns in fx/. */
-function addStreetGlow(scene: THREE.Scene): number {
-  const f = createFrame();
-  const positions: THREE.Vector3[] = [];
-  let side = 1;
-  for (let s = 8; s < STREET.length; s += 11) {
-    STREET.frame(s, f);
-    const d = side * (STREET.widthAtS(s) / 2 - 0.7);
-    positions.push(new THREE.Vector3(f.x + f.nx * d, f.y + 3.4, f.z + f.nz * d));
-    side = -side;
-  }
-  const orbMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(1.0, 0.62, 0.3), emissiveIntensity: 2.5 });
-  const orbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.09, 12, 8), orbMat, positions.length);
-  const m = new THREE.Matrix4();
-  positions.forEach((p, i) => {
-    orbs.setMatrixAt(i, m.makeTranslation(p.x, p.y, p.z));
-    const light = new THREE.PointLight(0xffa860, 9, 15, 1.8);
-    light.position.copy(p);
-    scene.add(light);
-  });
-  orbs.name = 'glow-orbs (temporary)';
-  orbs.computeBoundingSphere();
-  scene.add(orbs);
-  return positions.length;
 }

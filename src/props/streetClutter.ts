@@ -79,7 +79,7 @@ function cageGeometry(): THREE.BufferGeometry {
   return merge(...g);
 }
 
-export function scatterStreetClutter(kit: Kit, layout: StreetLayout): StreetClutter {
+export function scatterStreetClutter(kit: Kit, layout: StreetLayout, posts: readonly { side: Side; s: number }[] = []): StreetClutter {
   const rng = new SeededRandom('street-clutter');
   defineKinds(kit);
   const group = new THREE.Group();
@@ -103,6 +103,7 @@ export function scatterStreetClutter(kit: Kit, layout: StreetLayout): StreetClut
     const taken: [number, number][] = [];
     for (const st of layout.stoops.filter((x) => x.side === side)) taken.push([st.s - st.width / 2 - 0.45, st.s + st.width / 2 + 0.45]);
     for (const r of layout.reservations.filter((x) => x.side === side)) taken.push([r.s0 - 0.5, r.s1 + 0.5]);
+    for (const p of posts.filter((x) => x.side === side)) taken.push([p.s - 0.55, p.s + 0.55]);
     const free = (a: number, b: number) => !taken.some(([x, y]) => x < b && y > a);
 
     let s = 1.6;

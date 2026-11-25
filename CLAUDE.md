@@ -6,12 +6,12 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 
 | Folder | Responsibility |
 |---|---|
-| `src/core/` | Scene, renderer, camera, post-processing, debug HUD, seeded random (`SeededRandom`) |
+| `src/core/` | Scene, renderer, camera, `lighting.ts` (key/bounce rig, `LightPool`, atmosphere presets, lightning), `postprocessing.ts` (bloom + film pass), debug HUD, seeded random (`SeededRandom`) |
 | `src/materials/` | Procedural PBR generator: recipes in `recipes/`, Web Worker pool, `MaterialLibrary`, world-UV helpers, `withBaseGrime` |
 | `src/architecture/` | Street layout (`street.ts`), street surface, entry archway, side alleys, stoops; reusable kit in `kit/` (chamfered geometry, profile sweeps, `buildWall` with recessed openings, timber framing, `mergeStatic`) |
 | `src/shops/` | Hero shops (one module each: `ollivanders.ts`, `flourishBlotts.ts`, `wiseacres.ts`, `weasleyWheezes.ts`, `gringotts.ts` + `gringottsDragon.ts`), procedural `fillers.ts`, slots in `heroes.ts`, placement + gap filling in `plan.ts` |
-| `src/props/` | `displays.ts` (prop kinds, `fillDisplay` front risers, book towers, trunks), `dioramas.ts` (`dressWindow`: 1.5 m glowing window interiors + specials), `streetClutter.ts` (collision-aware pavement clutter, caged owls, weeds) |
-| `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards), `steam.ts` (cauldron steam), `sky.ts` (moonlit sky dome), `ambientMagic.ts` (paper planes, notices, lantern motes, owl flock) |
+| `src/props/` | `displays.ts` (prop kinds, `fillDisplay` front risers, book towers, trunks), `dioramas.ts` (`dressWindow`: 1.5 m glowing window interiors + specials), `streetClutter.ts` (collision-aware pavement clutter, caged owls, weeds), `streetlamps.ts` (instanced cast-iron gas lamps, mantles, light cones) |
+| `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards), `steam.ts` (cauldron steam), `sky.ts` (gradient sky dome: clouds, stars, moon/sun, lightning flash), `rain.ts` (GPU rain streaks), `ambientMagic.ts` (paper planes, notices, lantern motes, owl flock) |
 | `src/audio/` | Procedural Web Audio soundscapes (`AudioEngine`) |
 | `src/world/` | Scene assembly (`alley.ts`): loads materials, builds street + features, interaction |
 
@@ -33,6 +33,13 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 - Stoops follow doors: `shops/plan.ts` turns every shop door into a `STREET.stoops` site, so a shop's floor height (`floor`, multiples of 0.16 m) sets its step count.
 - Courtyard archway: `ARCH_DURATION` = 3.5 s; click the wall or press E within 9 m.
 - Gringotts is placed with `STREET.gringottsSite()` (not the shop planner): its portico and stairs step forward into the plaza, its wedge body runs back between the branch lanes. The lanes are lined by `architecture/forkTerraces.ts` (use `STREET.laneFrontageTransform`) and fade into `fx/mist.ts` cards.
+
+### Lighting & post
+
+- `core/lighting.ts` owns all scene lighting: moon/sun key `DirectionalLight` (shadow camera follows the view, texel-snapped), hemisphere bounce, a lightning light aimed at Gringotts, and the `LightPool`.
+- **Point lights go through the pool.** It keeps a fixed 14 `PointLight`s (no shader recompiles) and assigns them to the nearest/in-frustum `LightSource`s with fades. Publish a `LightSource` (lamps do) or add a plain `PointLight` — `adoptPointLights` hides it and drives it through the pool. Never add always-on point lights outside it.
+- Presets (`PRESETS`: Misty Blue Hour default, Golden Autumn Sunset, Midnight Storm) cross-fade sky, key, fog, exposure, bloom, lamp level, street wetness, rain and lightning. Add atmosphere state there, not ad hoc.
+- Post: `RenderPass → UnrealBloomPass (threshold ≈ 1 in HDR, so only emitters bloom) → film pass (vignette, grain, chromatic aberration) → OutputPass`. Keep marble/plaster albedo below the bloom threshold.
 
 ### Building kit (`src/architecture/kit.ts`)
 

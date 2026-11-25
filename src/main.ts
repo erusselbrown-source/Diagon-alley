@@ -17,14 +17,13 @@ const post = createPostProcessing(renderer, scene, camera);
 const hud = new DebugHud(renderer);
 
 const gui = new GUI({ title: 'Debug' });
-gui.add(renderer, 'toneMappingExposure', 0.2, 3, 0.01).name('exposure');
-gui.add(post.bloom, 'strength', 0, 3, 0.01).name('bloom').listen();
-gui.add(sun, 'intensity', 0, 5, 0.01).name('key light').listen();
-gui.close();
 
 let debug: DebugHandle | null = null;
 if (params.get('debug') === 'materials') {
   // Temporary inspection mode — loaded lazily so it never ships in the main path.
+  gui.add(renderer, 'toneMappingExposure', 0.2, 3, 0.01).name('exposure');
+  gui.add(post.bloom, 'strength', 0, 3, 0.01).name('bloom').listen();
+  gui.add(sun, 'intensity', 0, 5, 0.01).name('key light').listen();
   const { runMaterialsDebug } = await import('./debug/materialsDebug');
   debug = await runMaterialsDebug({ container, renderer, scene, camera, controls, post, sun, gui });
 }
@@ -32,8 +31,8 @@ if (params.get('debug') === 'materials') {
 let alley: AlleyWorld | null = null;
 if (!debug) {
   if (params.has('grid')) scene.add(createPlaceholderGround());
-  gui.add(scene.fog as THREE.FogExp2, 'density', 0, 0.1, 0.001).name('fog');
-  alley = await buildAlley({ renderer, scene, camera, controls, gui });
+  gui.title('Controls');
+  alley = await buildAlley({ renderer, scene, camera, controls, gui, post });
 }
 
 function onResize(): void {
