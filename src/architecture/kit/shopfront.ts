@@ -52,9 +52,9 @@ const PIL = 0.28, PIER = 0.16;
 export function shopGlass(kit: Kit): THREE.Material {
   return kit.mats.memo('shop-glass', () => {
     const base = kit.mats.get('glass');
-    const g = new THREE.MeshPhysicalMaterial({
-      color: 0xf4f8f2, roughness: 0.03, metalness: 0, transmission: 1, thickness: 0.006, ior: 1.52,
-      normalMap: base.normalMap, normalScale: new THREE.Vector2(0.12, 0.12), envMapIntensity: 1.2, side: THREE.DoubleSide,
+    const g = new THREE.MeshStandardMaterial({
+      color: 0xdde6e2, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.16,
+      normalMap: base.normalMap, normalScale: new THREE.Vector2(0.12, 0.12), envMapIntensity: 1.5, side: THREE.DoubleSide,
     });
     g.name = 'glass-shop';
     return g;

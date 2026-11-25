@@ -213,7 +213,8 @@ export function mergeStatic(root: THREE.Object3D, name = 'static'): THREE.Group 
     for (const c of o.children) visit(c);
     const m = o as THREE.Mesh;
     if (!m.isMesh || (m as unknown as THREE.InstancedMesh).isInstancedMesh || Array.isArray(m.material)) return;
-    if ((m.material as THREE.Material).transparent) return;
+    const mm = m.material as THREE.Material;
+    if (mm.transparent && mm.blending !== THREE.NormalBlending) return;
     const g = normalizeForMerge(m.geometry.clone());
     g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
     let list = buckets.get(m.material as THREE.Material);
@@ -257,7 +258,7 @@ export function mergeByCell(root: THREE.Object3D, cell = 24, name = 'batched'): 
     const m = o as THREE.Mesh;
     if (!m.isMesh || (m as unknown as THREE.InstancedMesh).isInstancedMesh || Array.isArray(m.material)) return;
     const mat = m.material as THREE.Material;
-    if (mat.transparent) return;
+    if (mat.transparent && mat.blending !== THREE.NormalBlending) return; // additive FX stay separate
     if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
     box.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld).getCenter(c);
     const key = `${mat.uuid}|${Math.floor(c.x / cell)},${Math.floor(c.z / cell)}`;

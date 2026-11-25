@@ -20,6 +20,8 @@ export interface PbrMaps {
   /** ORM-packed: R = AO, G = roughness, B = metalness. */
   roughnessMap: THREE.Texture;
   transmissionMap?: THREE.Texture;
+  /** 1 − transmission, for cheap alpha-blended glass (no transmission render pass). */
+  alphaMap?: THREE.Texture;
 }
 
 export interface LibraryOptions {
@@ -140,9 +142,28 @@ export class MaterialLibrary {
       normalMap: this.makeTexture(images.normal!, false),
       roughnessMap: this.makeTexture(images.orm!, false),
     };
-    if (images.transmission) maps.transmissionMap = this.makeTexture(images.transmission, false);
+    if (images.transmission) {
+      maps.transmissionMap = this.makeTexture(images.transmission, false);
+      maps.alphaMap = this.invertToAlpha(images.transmission);
+    }
     for (const t of Object.values(maps) as THREE.Texture[]) t.name = `${id}`;
     this.maps.set(id, maps);
+  }
+
+  /** Alpha = 1 − 0.85·transmission: lead cames opaque, panes mostly clear. */
+  private invertToAlpha(image: ImageSource): THREE.Texture {
+    const w = (image as { width: number }).width, h = (image as { height: number }).height;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d')!;
+    g.drawImage(image as CanvasImageSource, 0, 0);
+    const d = g.getImageData(0, 0, w, h);
+    for (let i = 0; i < d.data.length; i += 4) {
+      const a = 255 - d.data[i] * 0.85;
+      d.data[i] = d.data[i + 1] = d.data[i + 2] = a;
+    }
+    g.putImageData(d, 0, 0);
+    return this.makeTexture(c, false);
   }
 
   getMaps(id: MaterialId): PbrMaps {
@@ -169,7 +190,12 @@ export class MaterialLibrary {
       side: p.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
     };
     let mat: THREE.MeshStandardMaterial;
-    if (p.type === 'physical') {
+    if (p.transmission && maps.alphaMap) {
+      // Alpha-blended rather than physically transmissive: a transmissive material
+      // anywhere on screen makes three.js re-render every opaque object into a
+      // transmission buffer — far too costly with a street full of windows.
+      mat = new THREE.MeshStandardMaterial({ ...common, alphaMap: maps.alphaMap, transparent: true, envMapIntensity: 1.3 });
+    } else if (p.type === 'physical') {
       mat = new THREE.MeshPhysicalMaterial({
         ...common,
         clearcoat: p.clearcoat ?? 0,

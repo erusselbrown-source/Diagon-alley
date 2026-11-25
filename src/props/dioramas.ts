@@ -190,7 +190,7 @@ function spotlightCone(height: number, radius: number): THREE.Mesh {
   const mat = new THREE.ShaderMaterial({
     transparent: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
     vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ float edge = pow(abs(dot(vN, vV)), 1.5); float a = edge * (1.0 - vUv.y) * 0.22 + edge * 0.03; gl_FragColor = vec4(vec3(1.0, 0.86, 0.62) * a, a); }',
+    fragmentShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ float edge = pow(abs(dot(vN, vV)), 1.5); float a = edge * (1.0 - vUv.y) * 0.4 + edge * 0.05; gl_FragColor = vec4(vec3(1.0, 0.86, 0.62) * a, a); }',
   });
   const m = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 28, 1, true).translate(0, -height / 2, 0), mat);
   m.renderOrder = 10;
@@ -284,13 +284,14 @@ export function dressWindow(kit: Kit, d: PlacedDisplay, theme: DisplayTheme, rng
     }
   }
   if (o.floatingBroom) {
-    const z = back + 0.7;
+    const z = back + 0.95;
     put(kit, 'dio:stand', a, 0, 0, z, { x: 2.2, y: 1.6, z: 2.2 }, C(0x6a4a30));
-    put(kit, 'dio:pool', a, 0, 0.585, z, { x: 0.9, y: 0.9, z: 1 }, C(0xfff0d0), new THREE.Euler(-Math.PI / 2, 0, 0));
+    put(kit, 'dio:pool', a, 0, 0.585, z, { x: 1.1, y: 1.1, z: 1 }, C(0xfff0d0).multiplyScalar(1.6), new THREE.Euler(-Math.PI / 2, 0, 0));
     const holder = new THREE.Group();
     holder.userData.keep = true;
     holder.position.set(0, 0.95, z);
     const broom = nimbus(kit);
+    broom.scale.setScalar(1.35);
     holder.add(broom);
     const cone = spotlightCone(height - 0.2, 0.42);
     cone.position.set(0, height - 0.05 - 0.95, 0);
