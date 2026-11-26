@@ -66,7 +66,10 @@ export class MaterialLibrary {
     const tick = () => onProgress?.(++done, total);
 
     const canUseWorkers = typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined';
-    const jobs = canUseWorkers ? this.runInWorkers(todo, tick) : this.runOnMainThread(todo, tick);
+    // If workers are blocked (sandboxed embeds, strict CSP), finish whatever is left on the main thread.
+    const jobs = canUseWorkers
+      ? this.runInWorkers(todo, tick).catch(() => this.runOnMainThread(todo.filter((id) => !this.maps.has(id)), tick))
+      : this.runOnMainThread(todo, tick);
     await Promise.all([jobs, ...waiting]);
   }
 
