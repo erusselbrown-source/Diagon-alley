@@ -133,14 +133,18 @@ export class Game {
     window.addEventListener('keydown', (e) => this.onKey(e));
     d.dom.addEventListener('click', () => {
       if (!this.started || this.dialogOpen) return;
-      if (!IS_TOUCH && document.pointerLockElement !== d.dom) { d.dom.requestPointerLock?.(); return; }
+      if (!IS_TOUCH && !this.lockFailed && document.pointerLockElement !== d.dom) { d.dom.requestPointerLock?.(); return; }
       this.useTarget();
     });
     d.player.tapHandler = () => this.useTarget();
+    document.addEventListener('pointerlockerror', () => {
+      this.lockFailed = true;
+      if (this.started) this.showToast('Drag with the mouse to look around; click or press <b>E</b> to use things.', 4);
+    });
     document.addEventListener('pointerlockchange', () => {
       const locked = document.pointerLockElement === d.dom;
       this.crosshair.style.display = locked || IS_TOUCH ? 'block' : 'none';
-      if (!locked && this.started && !this.dialogOpen && !IS_TOUCH) this.showToast('Click to look around again.', 2.5);
+      if (!locked && this.started && !this.dialogOpen && !IS_TOUCH && !this.lockFailed) this.showToast('Click to look around again.', 2.5);
     });
     this.buildInteractables();
   }
@@ -236,6 +240,7 @@ export class Game {
   }
 
   private doorUnlocked = false;
+  private lockFailed = false;
 
   private useTarget(): void {
     if (!this.started || this.dialogOpen) return;

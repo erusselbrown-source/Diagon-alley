@@ -43,7 +43,9 @@ export class Player {
     window.addEventListener('keyup', (e) => { this.keys.delete(e.code); });
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('mousemove', (e) => {
-      if (!this.enabled || document.pointerLockElement !== this.dom || this.pose) return;
+      if (!this.enabled || this.pose) return;
+      // pointer lock may be refused in embedded frames: fall back to drag-to-look
+      if (document.pointerLockElement !== this.dom && !(e.buttons & 1)) return;
       this.yaw -= e.movementX * 0.0022;
       this.pitch = THREE.MathUtils.clamp(this.pitch - e.movementY * 0.0022, -1.35, 1.35);
     });
