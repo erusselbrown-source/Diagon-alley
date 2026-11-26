@@ -107,7 +107,7 @@ export function createWingMaterials(m: RoomMats, slate: THREE.MeshStandardMateri
     linen: new THREE.MeshPhysicalMaterial({ name: 'linen', color: 0xe9e3d6, roughness: 0.92, sheen: 0.6, sheenColor: new THREE.Color(0xffffff), normalMap: m.velvet.normalMap, normalScale: new THREE.Vector2(0.3, 0.3) }),
     quilt: [0, 1].map((k) => new THREE.MeshPhysicalMaterial({ name: `quilt-${k}`, map: paintQuilt(k), roughness: 0.95, sheen: 1, sheenColor: new THREE.Color(0x7088cc), side: THREE.DoubleSide, normalMap: m.velvet.normalMap })),
     rug: new THREE.MeshPhysicalMaterial({ name: 'dorm-rug', map: paintRug(), roughness: 1, sheen: 0.8, sheenColor: new THREE.Color(0x5a70b0), normalMap: m.velvet.normalMap }),
-    slit: new THREE.MeshStandardMaterial({ name: 'arrow-slit', color: 0x050a18, emissive: new THREE.Color(0.06, 0.1, 0.24), roughness: 0.4 }),
+    slit: new THREE.MeshStandardMaterial({ name: 'arrow-slit', color: 0x03060e, emissive: new THREE.Color(0.02, 0.035, 0.09), roughness: 0.4 }),
     mirror: new THREE.MeshStandardMaterial({ name: 'mirror', color: 0xc8ccd4, metalness: 1, roughness: 0.04, envMapIntensity: 1.6 }),
     owl: new THREE.MeshStandardMaterial({ name: 'owl', map: paintFeathers(), roughness: 0.9 }),
     owlFace: new THREE.MeshStandardMaterial({ name: 'owl-face', color: 0xcbb08c, roughness: 0.95 }),
@@ -287,7 +287,7 @@ function dormShell(b: Batch, m: RoomMats, x: WingMats, w: Wing, group: THREE.Gro
   const winY = { y0: 1.0, ys: 2.35, sharp: 0.9 };
   // south wall (room is +z → frame rotated π): arch to the turret landing
   b.push(tf(0, 0, 0, PI));
-  wallPanel(b, m, W + 2 * t, 0, 0, [], { x: -DORM_ARCH_X, w: 1.0, ys: 2.15 });
+  wallPanel(b, m, W + 2 * t, 0, G, [], { x: -DORM_ARCH_X, w: 1.0, ys: 2.15 });
   b.pop();
   // north gable with a two-light window
   b.push(tf(0, 0, D));
