@@ -263,10 +263,10 @@ export function createAirborne(scene: THREE.Object3D, hi: boolean): { update(dt:
         // brighter inside the moonlit north-west half of the room, where the shafts fall
         vB = 0.25 + 0.75 * smoothstep(0.0, 3.5, -(p.x + p.z) * 0.6 + 2.0 - p.y * 0.4);
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = 26.0 / -mv.z;
+        gl_PointSize = min(5.0, 9.0 / -mv.z);
         gl_Position = projectionMatrix * mv;
       }`,
-    fragmentShader: `varying float vB; void main(){ float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5)); gl_FragColor = vec4(vec3(0.7, 0.78, 1.0) * a * 0.35 * vB, a); }`,
+    fragmentShader: `varying float vB; void main(){ float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5)); gl_FragColor = vec4(vec3(0.7, 0.78, 1.0) * a * 0.22 * vB, a); }`,
   });
   const dust = new THREE.Points(g, dustMat);
   dust.frustumCulled = false;
