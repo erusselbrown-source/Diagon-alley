@@ -62,15 +62,24 @@ export function buildProps(m: RoomMats, shelves: ShelfSpec[]): Props {
 
   // ------------------------------------------------------------ bookcases
   const bcRefs: THREE.Vector3[] = [];
-  for (const bay of [2, 9, 10]) {
-    const tall = bay === 9;
+  {
+    const bay = 9;
     b.push(bayMatrix(bay));
-    bookcase(b, m, tall ? 4.5 : 3.35, 3.7, allShelves, bayMatrix(bay));
-    if (tall) ladder(b, m);
+    bookcase(b, m, 4.5, 3.7, allShelves, bayMatrix(bay));
+    ladder(b, m);
     b.pop();
     const c = new THREE.Vector3(0, 0, -0.3).applyMatrix4(bayMatrix(bay));
-    rects.push({ x: c.x, z: c.z, hw: 1.95, hd: 0.32 + (tall ? 0.2 : 0), rot: bayAngle(bay) });
+    rects.push({ x: c.x, z: c.z, hw: 1.95, hd: 0.52, rot: bayAngle(bay) });
     bcRefs.push(c);
+  }
+  // dormitory-door bays: a narrow bookcase either side of the arched door
+  for (const bay of [2, 10]) for (const sx of [-1.42, 1.42]) {
+    const mm = new THREE.Matrix4().multiplyMatrices(bayMatrix(bay), tf(sx, 0, 0));
+    b.push(mm);
+    bookcase(b, m, 3.0, 1.2, allShelves, mm);
+    b.pop();
+    const c = new THREE.Vector3(sx, 0, -0.3).applyMatrix4(bayMatrix(bay));
+    rects.push({ x: c.x, z: c.z, hw: 0.65, hd: 0.32, rot: bayAngle(bay) });
   }
   const books = fillShelves(m, allShelves, rng.fork('books'));
   group.add(...books);
@@ -80,7 +89,7 @@ export function buildProps(m: RoomMats, shelves: ShelfSpec[]): Props {
     b.push(bayMatrix(bay));
     b.add(m.bronze, cyl(0.025, 0.025, 1.3, 10, WS.bronze).rotateZ(PI / 2), tf(0, 6.0, -0.12));
     for (const s of [-1, 1]) b.add(m.bronze, lathe([[0.001, 0], [0.035, 0.03], [0.02, 0.08], [0.001, 0.1]], 8, WS.bronze).rotateZ(-s * PI / 2), tf(s * 0.65, 6.0, -0.12));
-    b.add(m.banner, bannerGeometry(1.05, 2.4), tf(0, 5.98, -0.1), false);
+    b.add(m.banner, bannerGeometry(1.0, 2.15), tf(0, 5.98, -0.1), false);
     b.pop();
   }
 
@@ -281,7 +290,7 @@ function bookcase(b: B, m: RoomMats, h: number, w: number, shelves: ShelfSpec[],
   const d = 0.44, zf = -0.52, zc = zf + d / 2;
   b.add(m.walnut, cbox(w + 0.12, 0.16, d + 0.06, 0.02, WS.walnut), tf(0, 0.08, zc));
   b.add(m.walnut, cbox(w, h - 0.16, 0.02, 0.005, WS.walnut), tf(0, 0.16 + (h - 0.16) / 2, zf + d - 0.01));
-  const cols = 3, colW = (w - 0.08) / cols;
+  const cols = w > 2 ? 3 : 1, colW = (w - 0.08) / cols;
   for (let k = 0; k <= cols; k++) {
     const x = -w / 2 + 0.04 + k * colW;
     const sideW = k === 0 || k === cols ? 0.07 : 0.045;
@@ -296,16 +305,17 @@ function bookcase(b: B, m: RoomMats, h: number, w: number, shelves: ShelfSpec[],
     b.add(m.walnut, cbox(w - 0.06, 0.03, d - 0.02, 0.006, WS.walnut), tf(0, y + 0.015, zc));
     if (r < rows) for (let k = 0; k < cols; k++) {
       const x0 = -w / 2 + 0.04 + k * colW + (k === 0 ? 0.035 : 0.022) + 0.005;
-      const sw = colW - (k === 0 || k === cols - 1 ? 0.057 : 0.045) - 0.012;
+      const sw = colW - (cols === 1 ? 0.07 : k === 0 || k === cols - 1 ? 0.057 : 0.045) - 0.012;
       shelves.push({ matrix: new THREE.Matrix4().multiplyMatrices(bayM, tf(x0, y + 0.03, zf + 0.03)), width: sw, height: rowH - 0.04, depth: d - 0.06 });
     }
   }
   // crown: moulded cornice and pierced Gothic cresting
   const crown: [number, number][] = [[0, 0], [0.04, 0.02], [0.06, 0.06], [0.1, 0.1], [0.12, 0.16], [0.12, 0.2], [0, 0.2]];
   b.add(m.walnut, extrudeProfile(crown, w + 0.2, WS.walnut), tf(w / 2 + 0.1, h, zf + 0.06, PI));
-  for (let k = 0; k < 6; k++) {
-    const ax = -w / 2 + (k + 0.5) * (w / 6);
-    const sh = archRing(w / 6 - 0.16, 0, 0.12, 0.05, 0.75);
+  const nArch = Math.max(2, Math.round(w / 0.62));
+  for (let k = 0; k < nArch; k++) {
+    const ax = -w / 2 + (k + 0.5) * (w / nArch);
+    const sh = archRing(w / nArch - 0.16, 0, 0.12, 0.05, 0.75);
     b.add(m.walnut, extrude(sh, 0.03, 0.004, WS.walnut, 6), tf(ax, h + 0.2, zf + 0.02));
     b.add(m.bronze, lathe([[0.001, 0], [0.025, 0.02], [0.02, 0.05], [0.006, 0.12], [0.001, 0.13]], 8, WS.bronze), tf(ax, h + 0.2 + 0.36, zf + 0.035));
   }
@@ -395,7 +405,7 @@ function fillShelves(m: RoomMats, shelves: ShelfSpec[], rng: SeededRandom): THRE
   return [mesh, bandMesh];
 }
 
-function frame(b: B, m: RoomMats, x: number, y: number, z: number, w: number, h: number): void {
+export function frame(b: B, m: RoomMats, x: number, y: number, z: number, w: number, h: number): void {
   const fw = 0.11;
   // gilt bead around the sight edge
   for (const [bw, bh, by, bx] of [[w + 0.04, 0.025, h / 2 + 0.012, 0], [w + 0.04, 0.025, -h / 2 - 0.012, 0], [0.025, h, 0, w / 2 + 0.012], [0.025, h, 0, -w / 2 - 0.012]] as const) {
@@ -520,11 +530,11 @@ function mantelClock(m: RoomMats, group: THREE.Group): THREE.Object3D {
 
 // =========================================================================== seating
 
-function legLathe(h: number, r = 0.035): THREE.BufferGeometry {
+export function legLathe(h: number, r = 0.035): THREE.BufferGeometry {
   return lathe([[r * 0.8, 0], [r, 0.04], [r * 0.7, 0.08], [r * 1.25, h * 0.35], [r * 0.7, h * 0.55], [r, h * 0.7], [r * 0.8, h * 0.9], [r * 1.1, h]], 10, WS.walnut);
 }
 
-function chair(b: B, m: RoomMats, x: number, z: number, ry: number, local = false): void {
+export function chair(b: B, m: RoomMats, x: number, z: number, ry: number, local = false): void {
   b.push(local ? tf(x, 0, z, ry) : tf(x, 0, z, ry));
   const sw = 0.46, sd = 0.44, sh = 0.46;
   for (const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) b.add(m.walnut, legLathe(sh - 0.04, 0.026), tf(lx * (sw / 2 - 0.03), 0, lz * (sd / 2 - 0.03)));
@@ -577,7 +587,7 @@ function sofa(b: B, m: RoomMats, x: number, z: number, ry: number): void {
   b.pop();
 }
 
-function cat(b: B, m: RoomMats, x: number, y: number, z: number): void {
+export function cat(b: B, m: RoomMats, x: number, y: number, z: number): void {
   const fur = m.black;
   b.push(tf(x, y, z, 0.8));
   b.add(fur, new THREE.SphereGeometry(0.16, 16, 12).scale(1.25, 0.6, 1), tf(0, 0.09, 0));
@@ -660,11 +670,11 @@ function desk(b: B, m: RoomMats): void {
 
 // =========================================================================== small props
 
-function bookGeo(w: number, h: number, d: number): THREE.BufferGeometry {
+export function bookGeo(w: number, h: number, d: number): THREE.BufferGeometry {
   return cbox(w, h, d, Math.min(w, h, d) * 0.12, 0.3);
 }
 
-function bookStack(b: B, m: RoomMats, x: number, y: number, z: number, n: number, rng: SeededRandom, _local = false): void {
+export function bookStack(b: B, m: RoomMats, x: number, y: number, z: number, n: number, rng: SeededRandom, _local = false): void {
   let yy = y;
   const mats = [m.leather, m.velvetDark, m.bookCover, m.wool, m.leather];
   for (let k = 0; k < n; k++) {
@@ -675,7 +685,7 @@ function bookStack(b: B, m: RoomMats, x: number, y: number, z: number, n: number
   }
 }
 
-function openBook(b: B, m: RoomMats, x: number, y: number, z: number, ry: number, _rng: SeededRandom): void {
+export function openBook(b: B, m: RoomMats, x: number, y: number, z: number, ry: number, _rng: SeededRandom): void {
   b.push(tf(x, y, z, ry));
   const w = 0.2, d = 0.27;
   for (const s of [-1, 1]) {
@@ -690,7 +700,7 @@ function openBook(b: B, m: RoomMats, x: number, y: number, z: number, ry: number
   b.pop();
 }
 
-function parchments(b: B, m: RoomMats, x: number, y: number, z: number, n: number, rng: SeededRandom, _local = false): void {
+export function parchments(b: B, m: RoomMats, x: number, y: number, z: number, n: number, rng: SeededRandom, _local = false): void {
   for (let k = 0; k < n; k++) {
     const g = plane(0.21, 0.29, 4, 4);
     const p = g.getAttribute('position') as THREE.BufferAttribute;
@@ -708,7 +718,7 @@ function scrolls(b: B, m: RoomMats, x: number, y: number, z: number, rng: Seeded
   }
 }
 
-function inkwell(b: B, m: RoomMats, x: number, y: number, z: number, _local = false): void {
+export function inkwell(b: B, m: RoomMats, x: number, y: number, z: number, _local = false): void {
   b.add(m.inkGlass, lathe([[0.001, 0], [0.035, 0], [0.04, 0.02], [0.038, 0.045], [0.018, 0.055], [0.016, 0.065], [0.001, 0.065]], 16, 0.2), tf(x, y, z));
   // quill: a curved shaft and a feathered vane
   const shaft = [new THREE.Vector3(0, 0.05, 0), new THREE.Vector3(0.03, 0.18, 0.01), new THREE.Vector3(0.07, 0.3, 0.03)];
@@ -720,7 +730,7 @@ function inkwell(b: B, m: RoomMats, x: number, y: number, z: number, _local = fa
   b.pop();
 }
 
-function teacup(b: B, m: RoomMats, x: number, y: number, z: number): void {
+export function teacup(b: B, m: RoomMats, x: number, y: number, z: number): void {
   b.add(m.porcelain, lathe([[0.001, 0], [0.065, 0], [0.07, 0.006], [0.03, 0.01], [0.001, 0.01]], 20, 0.2), tf(x, y, z));
   b.add(m.porcelain, lathe([[0.001, 0.01], [0.025, 0.01], [0.04, 0.03], [0.045, 0.06], [0.042, 0.062], [0.035, 0.03], [0.001, 0.018]], 20, 0.2), tf(x, y, z));
   b.add(m.porcelain, new THREE.TorusGeometry(0.016, 0.004, 6, 12, PI * 1.3), tf(x + 0.048, y + 0.04, z, 0, 0, -PI * 0.65));
@@ -776,7 +786,7 @@ function hourglass(m: RoomMats, b: B, x: number, y: number, z: number): void {
   b.add(m.paper, lathe([[0.001, 0.016], [0.028, 0.02], [0.02, 0.05], [0.004, 0.08], [0.001, 0.08]], 12, 0.2), tf(x, y, z));
 }
 
-function candlestick(b: B, m: RoomMats, candles: Candle[], x: number, y: number, z: number, h: number, local = false): void {
+export function candlestick(b: B, m: RoomMats, candles: Candle[], x: number, y: number, z: number, h: number, local = false): void {
   b.add(m.bronze, lathe([[0.001, 0], [0.06, 0], [0.06, 0.01], [0.045, 0.02], [0.015, 0.04], [0.012, h * 0.6], [0.02, h * 0.65], [0.012, h * 0.7], [0.012, h - 0.02], [0.03, h - 0.01], [0.03, h], [0.001, h]], 14, WS.bronze), tf(x, y, z));
   const ch = 0.08 + ((x * 13.1 + z * 7.3) % 1 + 1) % 1 * 0.1;
   const p = new THREE.Vector3(x, y + h, z);
@@ -812,7 +822,7 @@ function floorCandelabrum(b: B, m: RoomMats, candles: Candle[], x: number, z: nu
   candles.push({ pos: new THREE.Vector3(x, 1.635, z), h: 0.26, r: 0.016 });
 }
 
-function satchel(b: B, m: RoomMats, x: number, y: number, z: number, ry: number): void {
+export function satchel(b: B, m: RoomMats, x: number, y: number, z: number, ry: number): void {
   b.push(tf(x, y, z, ry, 0.2));
   b.add(m.leather, softBox(0.38, 0.28, 0.12, 0.04, 6), tf(0, 0.14, 0));
   b.add(m.leather, softBox(0.39, 0.16, 0.02, 0.01, 4), tf(0, 0.2, -0.065, 0, 0.1));
@@ -821,7 +831,7 @@ function satchel(b: B, m: RoomMats, x: number, y: number, z: number, ry: number)
   b.pop();
 }
 
-function plant(b: B, m: RoomMats, x: number, y: number, z: number, rng: SeededRandom): void {
+export function plant(b: B, m: RoomMats, x: number, y: number, z: number, rng: SeededRandom): void {
   const leaf = new THREE.MeshStandardMaterial({ color: 0x2d4a24, roughness: 0.6, side: THREE.DoubleSide, name: 'leaf' });
   b.add(m.porcelain, lathe([[0.001, 0], [0.07, 0], [0.1, 0.14], [0.11, 0.16], [0.001, 0.15]], 18, 0.2), tf(x, y, z));
   for (let k = 0; k < 14; k++) {
@@ -833,7 +843,7 @@ function plant(b: B, m: RoomMats, x: number, y: number, z: number, rng: SeededRa
   }
 }
 
-function broom(b: B, m: RoomMats, x: number, z: number): void {
+export function broom(b: B, m: RoomMats, x: number, z: number): void {
   b.push(tf(x, 0, z, 0.4, 0, 0.12));
   b.add(m.walnut, cyl(0.016, 0.018, 1.55, 8, WS.walnut), tf(0, 0.95, 0));
   b.add(m.oak, lathe([[0.02, 0.0], [0.07, 0.05], [0.1, 0.25], [0.05, 0.4], [0.025, 0.45]], 14, 0.3), tf(0, -0.02, 0));
@@ -848,7 +858,7 @@ function crumpled(rng: SeededRandom): THREE.BufferGeometry {
   return g.toNonIndexed();
 }
 
-function drapedCloth(w: number, d: number, drop: number): THREE.BufferGeometry {
+export function drapedCloth(w: number, d: number, drop: number): THREE.BufferGeometry {
   const g = new THREE.PlaneGeometry(w, d, 20, 20);
   const p = g.getAttribute('position') as THREE.BufferAttribute;
   for (let i = 0; i < p.count; i++) {
@@ -862,7 +872,7 @@ function drapedCloth(w: number, d: number, drop: number): THREE.BufferGeometry {
   return g;
 }
 
-function scarfGeometry(): THREE.BufferGeometry {
+export function scarfGeometry(): THREE.BufferGeometry {
   const pts = [new THREE.Vector3(-0.25, -0.5, 0.05), new THREE.Vector3(-0.2, -0.1, 0.04), new THREE.Vector3(-0.1, 0.05, 0.0), new THREE.Vector3(0.1, 0.05, 0.0), new THREE.Vector3(0.22, -0.15, 0.04), new THREE.Vector3(0.26, -0.45, 0.06)];
   const curve = new THREE.CatmullRomCurve3(pts);
   const g = new THREE.TubeGeometry(curve, 40, 0.06, 6, false);

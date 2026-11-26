@@ -13,7 +13,7 @@ import {
 } from './util';
 import { extrudeProfile } from '../architecture/kit/geometry';
 import {
-  BAYS, BAY_W, R, RV, WALL_T, WALL_H, DOME, WIN, DOOR, NICHE, PASSAGE, STAIRWELL, MOON_DIR, COS15,
+  BAYS, BAY_W, R, RV, WALL_T, WALL_H, DOME, WIN, DOOR, NICHE, DORM_DOOR, PASSAGE, STAIRWELL, MOON_DIR, COS15,
   bayAngle, bayMatrix, N_BAYS,
 } from './layout';
 import type { RoomMats } from './materials';
@@ -25,7 +25,9 @@ export interface ShelfSpec { matrix: THREE.Matrix4; width: number; height: numbe
 
 export interface Shell {
   group: THREE.Group;
-  door: { pivot: THREE.Object3D; knocker: THREE.Object3D; angle: number; target: number };
+  door: DoorLeaf;
+  /** Dormitory doors in bays 2 and 10, keyed by bay. */
+  wingDoors: Map<number, DoorLeaf>;
   dome: { material: THREE.MeshStandardMaterial; uniforms: DomeUniforms; textures: DomeTextures };
   sky: THREE.Mesh;
   shelves: ShelfSpec[];
@@ -34,6 +36,8 @@ export interface Shell {
   torch: THREE.Vector3;
   lantern: THREE.Vector3;
 }
+
+export interface DoorLeaf { pivot: THREE.Object3D; knocker: THREE.Object3D | null; angle: number; target: number; base: number }
 
 export interface DomeUniforms {
   uTime: { value: number };
@@ -45,7 +49,7 @@ export interface DomeUniforms {
 
 const PI = Math.PI;
 
-export function buildShell(m: RoomMats, hi: boolean): Shell {
+export function buildShell(m: RoomMats, hi: boolean, slate: THREE.Material): Shell {
   const group = new THREE.Group();
   group.name = 'shell';
   const b = new Batch();
@@ -74,12 +78,14 @@ export function buildShell(m: RoomMats, hi: boolean): Shell {
     if (kind === 'window') shape.holes.push(toPath(archPoints(WIN.w, WIN.y0, WIN.ys, WIN.sharp)));
     if (kind === 'door') shape.holes.push(toPath(archPoints(DOOR.w, 0, DOOR.ys, DOOR.sharp)));
     if (kind === 'statue') shape.holes.push(toPath(archPoints(NICHE.w, 0, NICHE.ys, NICHE.sharp)));
+    if (kind === 'dorm') shape.holes.push(toPath(archPoints(DORM_DOOR.w, 0, DORM_DOOR.ys, DORM_DOOR.sharp)));
     b.add(m.ashlar, extrude(shape, WALL_T, 0, WS.ashlar));
 
     // skirting plinth course (gaps for door and niche)
     const prof: [number, number][] = [[0, 0], [0.12, 0], [0.12, 0.2], [0.09, 0.24], [0.06, 0.3], [0.03, 0.32], [0, 0.34]];
     const runs: [number, number][] = kind === 'door' ? [[-hw, -DOOR.w / 2 - 0.1], [DOOR.w / 2 + 0.1, hw]]
       : kind === 'statue' ? [[-hw, -NICHE.w / 2 - 0.1], [NICHE.w / 2 + 0.1, hw]]
+      : kind === 'dorm' ? [[-hw, -DORM_DOOR.w / 2 - 0.1], [DORM_DOOR.w / 2 + 0.1, hw]]
       : kind === 'window' ? [] : [[-hw, hw]];
     for (const [x0, x1] of runs) {
       const g = extrudeProfile(prof, x1 - x0, WS.ashlar);
@@ -87,11 +93,12 @@ export function buildShell(m: RoomMats, hi: boolean): Shell {
     }
 
     if (kind === 'window') buildWindow(b, m, rng, shelves, i);
-    if (kind === 'door') buildDoorSurround(b, m);
+    if (kind === 'door') buildDoorSurround(b, m, DOOR, true);
+    if (kind === 'dorm') buildDoorSurround(b, m, DORM_DOOR, false);
     if (kind === 'statue') buildNiche(b, m, group, i);
 
     // dado moulding (chair rail) on solid bays
-    if (kind === 'bookcase' || kind === 'fireplace') {
+    if (kind === 'bookcase' || kind === 'fireplace' || kind === 'dorm') {
       const rail: [number, number][] = [[0, 0], [0.04, 0.01], [0.05, 0.04], [0.03, 0.07], [0, 0.08]];
       b.add(m.ashlarDark, extrudeProfile(rail, 2 * hw, WS.ashlar), tf(hw, 0.95, 0, PI));
     }
@@ -109,7 +116,11 @@ export function buildShell(m: RoomMats, hi: boolean): Shell {
   }
 
   // ---------------------------------------------------------------- door, passage and stair
-  const door = buildDoor(m, group);
+  const door = buildDoor(m, group, DOOR, new THREE.Matrix4().makeTranslation(-DOOR.w / 2 + 0.015, 0, R + 0.42), 0, true);
+  const wingDoors = new Map<number, DoorLeaf>();
+  for (let i = 0; i < N_BAYS; i++) if (BAYS[i] === 'dorm') {
+    wingDoors.set(i, buildDoor(m, group, DORM_DOOR, bayMatrix(i).multiply(new THREE.Matrix4().makeTranslation(-DORM_DOOR.w / 2 + 0.015, 0, 0.42)), bayAngle(i), false));
+  }
   const torch = buildPassage(b, m, rng);
 
   // ---------------------------------------------------------------- columns
@@ -224,11 +235,22 @@ export function buildShell(m: RoomMats, hi: boolean): Shell {
   drum.position.y = topY + 0.55;
   group.add(drum);
 
+  // ---------------------------------------------------------------- exterior (seen from the dormitory windows)
+  const ro = (R + WALL_T) / COS15;
+  b.add(m.ashlar, lathe([[ro, -24], [ro, 0]], N_BAYS, WS.ashlar, PI / 12));
+  b.add(m.ashlar, lathe([[ro, WALL_H + 0.38], [ro + 0.28, WALL_H + 0.5], [ro + 0.28, WALL_H + 1.05], [ro + 0.1, WALL_H + 1.12]], N_BAYS, WS.ashlar, PI / 12));
+  b.add(slate, lathe([[ro + 0.55, WALL_H + 1.0], [0.001, WALL_H + 13.5]], 64, WS.slate));
+  b.add(m.bronze, lathe([[0.12, 0], [0.18, 0.15], [0.08, 0.5], [0.2, 0.8], [0.05, 1.1], [0.025, 2.2], [0.001, 2.3]], 16, WS.bronze), tf(0, WALL_H + 13.2, 0));
+  for (let k = 0; k < N_BAYS * 3; k++) {
+    const a = (k / (N_BAYS * 3)) * PI * 2;
+    b.add(m.ashlar, cbox(0.5, 0.45, 0.3, 0.02, WS.ashlar), tf(Math.sin(a) * (ro + 0.15), WALL_H + 1.3, Math.cos(a) * (ro + 0.15), a));
+  }
+
   const sky = buildSky();
   group.add(sky);
   group.add(b.build('shell-static'));
   return {
-    group, door, sky, shelves, colliders: { circles, rects }, seats, torch,
+    group, door, wingDoors, sky, shelves, colliders: { circles, rects }, seats, torch,
     dome: { material: domeMat, uniforms, textures: domeTex },
     lantern: new THREE.Vector3(0, topY, 0),
   };
@@ -354,18 +376,19 @@ function valanceGeometry(width: number, depth: number): THREE.BufferGeometry {
   return g;
 }
 
-function buildDoorSurround(b: Batch, m: RoomMats): void {
+function buildDoorSurround(b: Batch, m: RoomMats, D: { w: number; ys: number; sharp: number }, plaque: boolean): void {
+  const DOOR = D;
   b.add(m.marble, extrude(archRing(DOOR.w, 0, DOOR.ys, 0.2, DOOR.sharp), 0.08, 0.014, WS.marble), tf(0, 0, -0.08));
   const roll = archPoints(DOOR.w + 0.06, 0, DOOR.ys, DOOR.sharp).slice(2).map((p) => new THREE.Vector3(p.x, p.y, -0.1));
   b.add(m.bronze, tube(roll, 0.024, 64, 6));
   // carved tympanum shield above the door: bronze eagle plaque
   const apex = archApex(DOOR.w, DOOR.ys, DOOR.sharp);
-  b.add(m.marble, cbox(0.9, 0.7, 0.08, 0.02, WS.marble), tf(0, apex + 0.6, -0.06));
+  if (plaque) b.add(m.marble, cbox(0.9, 0.7, 0.08, 0.02, WS.marble), tf(0, apex + 0.6, -0.06));
   // marble threshold through the wall
   b.add(m.marble, cbox(DOOR.w + 0.1, 0.1, WALL_T + 0.6, 0.015, WS.marble), tf(0, -0.049, 0.5));
 }
 
-function buildDoor(m: RoomMats, group: THREE.Group): Shell['door'] {
+function buildDoor(m: RoomMats, group: THREE.Group, DOOR: { w: number; ys: number; sharp: number }, place: THREE.Matrix4, base: number, withKnocker: boolean): DoorLeaf {
   const pivot = new THREE.Group();
   pivot.name = 'door-pivot';
   pivot.userData.keep = true;
@@ -393,6 +416,11 @@ function buildDoor(m: RoomMats, group: THREE.Group): Shell['door'] {
   const leaf = b.build('door-leaf');
   pivot.add(leaf);
   // bronze eagle knocker on the passage side
+  if (!withKnocker) {
+    pivot.applyMatrix4(place);
+    group.add(pivot);
+    return { pivot, knocker: null, angle: 0, target: 0, base };
+  }
   const knocker = new THREE.Group();
   knocker.name = 'knocker';
   const kb = new Batch();
@@ -409,9 +437,9 @@ function buildDoor(m: RoomMats, group: THREE.Group): Shell['door'] {
   knocker.position.set(w / 2, 1.55, 0.16);
   pivot.add(knocker);
   // hinge at the left jamb, mid-wall
-  pivot.position.set(-DOOR.w / 2 + 0.015, 0, R + 0.42);
+  pivot.applyMatrix4(place);
   group.add(pivot);
-  return { pivot, knocker, angle: 0, target: 0 };
+  return { pivot, knocker, angle: 0, target: 0, base };
 }
 
 function archHeightAt(w: number, ys: number, sharp: number, x: number): number {

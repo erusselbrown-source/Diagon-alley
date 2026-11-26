@@ -6,9 +6,9 @@
  * Also supports scripted "poses" (sitting, telescope) that blend the camera.
  */
 import * as THREE from 'three';
-import { R, PASSAGE, STAIRWELL, EYE, N_BAYS, bayAngle } from './layout';
-import type { Circle, Rect } from './util';
+import { EYE } from './layout';
 import { IS_TOUCH } from '../core/device';
+import type { TowerWalkArea } from './walkArea';
 
 const RADIUS = 0.27;
 
@@ -18,10 +18,11 @@ export class Player {
   readonly pos: THREE.Vector3;
   yaw = Math.PI; // facing −Z (toward the door from the landing)
   pitch = 0.02;
-  doorOpen = 0;
   enabled = false;
-  circles: Circle[] = [];
-  rects: Rect[] = [];
+  /** Height of the floor under the walker's feet (eased) and the target floor height. */
+  floorY = 0;
+  private nextFloor = 0;
+  private eyeFloor = 0;
   onStep: (() => void) | null = null;
   private keys = new Set<string>();
   private bob = 0;
@@ -36,7 +37,7 @@ export class Player {
   readonly stickEl: HTMLDivElement | null = null;
   tapHandler: ((x: number, y: number) => void) | null = null;
 
-  constructor(private readonly camera: THREE.PerspectiveCamera, private readonly dom: HTMLElement, start: THREE.Vector3) {
+  constructor(private readonly camera: THREE.PerspectiveCamera, private readonly dom: HTMLElement, start: THREE.Vector3, readonly area: TowerWalkArea) {
     this.pos = start.clone();
     this.baseFov = camera.fov;
     window.addEventListener('keydown', (e) => { this.keys.add(e.code); });
@@ -102,35 +103,11 @@ export class Player {
   setPose(p: Pose | null): void { this.pose = p; if (p) this.stick.set(0, 0); }
   get posed(): boolean { return this.pose !== null; }
 
-  /** Is (x, z) inside the walkable plan (ignoring furniture)? */
-  walkable(x: number, z: number): boolean {
-    // inside the dodecagon (apothem R minus body radius)?
-    let inRoom = true;
-    for (let i = 0; i < N_BAYS; i++) {
-      const a = bayAngle(i);
-      if (x * Math.sin(a) + z * Math.cos(a) > R - 0.62 - RADIUS * 0) { inRoom = false; break; }
-    }
-    if (inRoom) return true;
-    // doorway (only when the door is open) and passage beyond
-    const inDoorway = Math.abs(x) < 0.55 && z > R - 1.2 && z < PASSAGE.z0 + 0.1;
-    if (inDoorway) return this.doorOpen > 0.6 || z > R + 0.62;
-    const inPassage = Math.abs(x) < PASSAGE.w / 2 - RADIUS - 0.05 && z >= PASSAGE.z0 - 0.4 && z < STAIRWELL.z - 0.85;
-    return inPassage;
-  }
-
   blocked(x: number, z: number): boolean {
-    if (!this.walkable(x, z)) return true;
-    for (const c of this.circles) {
-      const dx = x - c.x, dz = z - c.z, rr = c.r + RADIUS;
-      if (dx * dx + dz * dz < rr * rr) return true;
-    }
-    for (const r of this.rects) {
-      const dx = x - r.x, dz = z - r.z;
-      const c = Math.cos(r.rot), s = Math.sin(r.rot);
-      // world → rect-local (rect local x = bay x axis, z = bay z axis)
-      const lx = dx * c - dz * s, lz = dx * s + dz * c;
-      if (Math.abs(lx) < r.hw + RADIUS && Math.abs(lz) < r.hd + RADIUS) return true;
-    }
+    this.area.refY = this.floorY;
+    const h = this.area.sample(x, z, RADIUS);
+    if (h === null) return true;
+    this.nextFloor = h;
     return false;
   }
 
@@ -155,6 +132,7 @@ export class Player {
       else if (!this.blocked(nx, this.pos.z)) this.pos.x = nx;
       else if (!this.blocked(this.pos.x, nz)) this.pos.z = nz;
       else this.vel.multiplyScalar(0.5);
+      this.floorY = this.nextFloor;
       speed = this.vel.length();
     }
     // head bob + footsteps
@@ -164,7 +142,9 @@ export class Player {
     if (sign < 0 && this.lastBobSign > 0 && speed > 0.6) this.onStep?.();
     this.lastBobSign = sign;
 
-    const walkPos = new THREE.Vector3(this.pos.x, EYE + bobY, this.pos.z);
+    // ease the eye toward the floor height so stair steps read as a smooth climb
+    this.eyeFloor += (this.floorY - this.eyeFloor) * Math.min(1, dt * 10);
+    const walkPos = new THREE.Vector3(this.pos.x, this.eyeFloor + EYE + bobY, this.pos.z);
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pitch, this.yaw, Math.sin(this.bob) * 0.004 * speed, 'YXZ'));
     this.poseBlend = THREE.MathUtils.clamp(this.poseBlend + (this.pose ? dt : -dt) * 1.6, 0, 1);
     const k = this.poseBlend * this.poseBlend * (3 - 2 * this.poseBlend);

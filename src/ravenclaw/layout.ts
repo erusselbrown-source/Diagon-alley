@@ -22,10 +22,10 @@ export const COS15 = Math.cos(Math.PI / 12);
 export const RV = R / COS15; // vertex radius
 export const BAY_W = 2 * R * Math.tan(Math.PI / 12);
 
-export type BayKind = 'door' | 'window' | 'bookcase' | 'fireplace' | 'statue';
+export type BayKind = 'door' | 'window' | 'bookcase' | 'fireplace' | 'statue' | 'dorm';
 export const BAYS: BayKind[] = [
-  'door', 'window', 'bookcase', 'fireplace', 'window', 'window',
-  'statue', 'window', 'window', 'bookcase', 'bookcase', 'window',
+  'door', 'window', 'dorm', 'fireplace', 'window', 'window',
+  'statue', 'window', 'window', 'bookcase', 'dorm', 'window',
 ];
 
 /** Window opening (pointed arch). */
@@ -55,3 +55,25 @@ export const STAIRWELL = { r: 1.5, z: PASSAGE.z1 + 1.3 } as const;
 
 export const EYE = 1.62;
 export const START = new THREE.Vector3(0, EYE, PASSAGE.z1 - 0.6);
+
+// ---------------------------------------------------------------------------
+// Dormitory wings (bays 2 and 10): door → vaulted passage → spiral-stair
+// turret → dormitory one storey up. All in the bay's local frame (z outward).
+// ---------------------------------------------------------------------------
+
+export const DORM_DOOR = { w: 1.3, ys: 2.4, sharp: 0.8 } as const;
+export const WING_PASSAGE = { w: 1.7, z0: WALL_T, z1: 3.0, ys: 2.35 } as const;
+/** Spiral stair: enters at φ = π (−z side), climbs 540° to the +z side. φ is atan2(x, z). */
+export const TURRET = { z: 4.25, r: 1.3, newel: 0.24, steps: 24, rise: 0.165, wall: 0.45 } as const;
+export const UPPER = TURRET.steps * TURRET.rise; // dorm floor height (3.96 m)
+export const STAIR_SWEEP = Math.PI * 3;
+/** Dormitory box (bay-local): x ∈ [−w/2, w/2], z ∈ [z0, z0 + d], floor y = UPPER. */
+export const DORM = { w: 8.0, z0: TURRET.z + TURRET.r + 0.02, d: 7.2, wallH: 3.5, ridge: 2.6, t: 0.45 } as const;
+/** Door from the turret top landing into the dorm (bay-local x centre). */
+export const DORM_ARCH_X = 0.55;
+
+export interface Wing { bay: number; kind: 'boys' | 'girls'; matrix: THREE.Matrix4; inverse: THREE.Matrix4 }
+export const WINGS: Wing[] = ([[2, 'boys'], [10, 'girls']] as const).map(([bay, kind]) => {
+  const matrix = bayMatrix(bay);
+  return { bay, kind, matrix, inverse: matrix.clone().invert() };
+});

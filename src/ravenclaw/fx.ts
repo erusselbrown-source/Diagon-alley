@@ -240,7 +240,7 @@ export function createMoonbeams(scene: THREE.Object3D): { update(t: number): voi
 // ---------------------------------------------------------------------------
 
 /** Dust motes that glint where the moonbeams fall, and snow drifting past the windows outside. */
-export function createAirborne(scene: THREE.Object3D, hi: boolean): { update(dt: number, t: number): void } {
+export function createAirborne(scene: THREE.Object3D, hi: boolean, inside: (x: number, z: number) => boolean): { update(dt: number, t: number): void } {
   const rng = new SeededRandom('dust');
   const N = hi ? 900 : 400;
   const pos = new Float32Array(N * 3);
@@ -276,9 +276,11 @@ export function createAirborne(scene: THREE.Object3D, hi: boolean): { update(dt:
   const S = hi ? 2200 : 900;
   const sp = new Float32Array(S * 3);
   for (let i = 0; i < S; i++) {
-    let a = rng.range(0, PI * 2);
-    if (Math.abs(a - PI * 2) < 0.45 || a < 0.45) a = rng.range(0.5, PI * 2 - 0.5); // keep out of the entrance passage
-    const r = rng.range(R + 1.4, R + 9);
+    let a = 0, r = 0;
+    for (let tries = 0; tries < 20; tries++) { // keep the snow out of the tower, passages and dormitory wings
+      a = rng.range(0, PI * 2); r = rng.range(R + 1.4, R + 14);
+      if (!inside(Math.sin(a) * r, Math.cos(a) * r)) break;
+    }
     sp[i * 3] = Math.sin(a) * r; sp[i * 3 + 1] = rng.range(-6, 10); sp[i * 3 + 2] = Math.cos(a) * r;
   }
   const sg = new THREE.BufferGeometry();

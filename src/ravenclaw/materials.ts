@@ -8,11 +8,11 @@ import type { MaterialLibrary, MaterialId } from '../materials';
 import { paintCarpet, paintParchment, paintBookPages, paintBanner, paintChessboard, paintClockFace, paintScarf } from './textures';
 
 export const ROOM_MATERIALS: MaterialId[] = [
-  'ashlar', 'marble', 'walnut', 'parquet', 'silk', 'bronze', 'brass', 'iron', 'leather', 'glass', 'oak', 'velvet', 'granite',
+  'ashlar', 'marble', 'walnut', 'parquet', 'silk', 'bronze', 'brass', 'iron', 'leather', 'glass', 'oak', 'velvet', 'granite', 'slate',
 ];
 
 /** Texture tile sizes (metres) — keep in sync with the recipes. */
-export const WS = { ashlar: 2.4, marble: 1, walnut: 1.2, parquet: 1.6, silk: 0.5, bronze: 0.4, brass: 0.4, iron: 0.5, leather: 0.35, oak: 1, velvet: 0.4, granite: 1.2 } as const;
+export const WS = { ashlar: 2.4, marble: 1, walnut: 1.2, parquet: 1.6, silk: 0.5, bronze: 0.4, brass: 0.4, iron: 0.5, leather: 0.35, oak: 1, velvet: 0.4, granite: 1.2, slate: 1.0 } as const;
 
 export interface RoomMats {
   ashlar: THREE.MeshStandardMaterial;

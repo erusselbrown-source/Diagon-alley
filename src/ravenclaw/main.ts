@@ -9,6 +9,9 @@
 import * as THREE from 'three';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { createRenderer, createPostProcessing, DebugHud, IS_TOUCH, QUALITY } from '../core';
+import { LightPool, type LightSource } from '../core/lighting';
+import { TowerWalkArea } from './walkArea';
+import { buildWings, createWingMaterials } from './wing';
 import { MaterialLibrary } from '../materials';
 import { ROOM_MATERIALS, createRoomMaterials } from './materials';
 import { buildShell } from './shell';
@@ -33,7 +36,8 @@ if (!new URLSearchParams(location.search).has('hud')) hud.setVisible(false);
 
 // ------------------------------------------------------------------ boot UI
 const audio = new TowerAudio();
-const player = new Player(camera, renderer.domElement, START);
+const area = new TowerWalkArea();
+const player = new Player(camera, renderer.domElement, START, area);
 
 const lib = new MaterialLibrary({ seed: 'ravenclaw-tower', anisotropy: Math.min(8, renderer.capabilities.getMaxAnisotropy()) });
 
@@ -48,18 +52,24 @@ await new Promise((r) => setTimeout(r, 0));
 const mats = createRoomMaterials(lib, HI);
 
 // ------------------------------------------------------------------ world
-const shell = buildShell(mats, HI);
+const slate = lib.get('slate');
+const shell = buildShell(mats, HI, slate);
 scene.add(shell.group);
 const props = buildProps(mats, shell.shelves);
 scene.add(props.group);
-player.circles = [...shell.colliders.circles, ...props.colliders.circles];
-player.rects = [...shell.colliders.rects, ...props.colliders.rects];
+for (const c of [...shell.colliders.circles, ...props.colliders.circles]) area.addCircle(c.x, c.z, c.r);
+for (const r of [...shell.colliders.rects, ...props.colliders.rects]) area.addRect(r.x, r.z, r.hw, r.hd, r.rot);
+const wingMats = createWingMaterials(mats, slate, mats.oak);
+const wings = buildWings(mats, wingMats, area);
+scene.add(wings.group);
 
-const candles = createCandles(mats, scene, props.candles, HI);
+const candles = createCandles(mats, scene, [...props.candles, ...wings.candles], HI);
 const fire = createFire(scene, props.refs.fireBase);
 const beams = createMoonbeams(scene);
-const airborne = createAirborne(scene, HI);
-const feathers = createFeathers(mats, scene, props.refs.feathers);
+const airborne = createAirborne(scene, HI, (x, z) => area.inside(x, z));
+// seven feathers: landing, mantel, statue niche, bookcase top, moonlit window seat — and one in each dormitory
+const featherSpots = [0, 1, 2, 4, 5].map((i) => props.refs.feathers[i]).concat(wings.refs.map((r) => r.feather));
+const feathers = createFeathers(mats, scene, featherSpots);
 const shooting = createShootingStars(scene);
 
 // ------------------------------------------------------------------ lighting
@@ -73,31 +83,26 @@ moon.shadow.mapSize.set(QUALITY.shadowMap, QUALITY.shadowMap);
 moon.shadow.bias = -0.0003;
 moon.shadow.normalBias = 0.03;
 moon.shadow.radius = 4;
-Object.assign(moon.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 5, far: 70 });
+// covers the drum and both dormitory wings
+moon.shadow.mapSize.set(HI ? 4096 : 2048, HI ? 4096 : 2048);
+Object.assign(moon.shadow.camera, { left: -21, right: 21, top: 21, bottom: -21, near: 5, far: 80 });
 scene.add(moon, moon.target);
 
-const fireLight = new THREE.PointLight(0xff8636, 26, 16, 2);
-fireLight.position.copy(props.lights.fire);
-fireLight.castShadow = false; // a cube shadow would re-render the room six times
-fireLight.shadow.mapSize.set(512, 512);
-fireLight.shadow.bias = -0.002;
-fireLight.shadow.radius = 6;
-scene.add(fireLight);
-
-const chandLight = new THREE.PointLight(0xffb066, 46, 24, 2);
-chandLight.position.copy(props.lights.chandelier);
-scene.add(chandLight);
-
-const tableLights = props.lights.tables.map((p) => {
-  const l = new THREE.PointLight(0xffa15a, 3.2, 7, 2);
-  l.position.copy(p);
-  scene.add(l);
-  return l;
-});
-
-const torch = new THREE.PointLight(0xff8a3a, 2.2, 7, 2);
-torch.position.copy(shell.torch).add(new THREE.Vector3(0.45, 0.25, 0));
-scene.add(torch);
+// Every point light goes through the project's LightPool (core/lighting.ts): a fixed set of
+// PointLights assigned each frame to the nearest / visible sources — no shader recompiles as
+// you move between the common room, the turrets and the dormitories.
+const pool = new LightPool(scene, QUALITY.lightPool);
+const flick = (base: number, k: number, seed: number) => () => base * (1 - 0.12 * k + 0.12 * k * Math.sin(clock.t * (9 + seed) + seed) + 0.05 * k * Math.sin(clock.t * 23 + seed * 3));
+const clock = { t: 0, awake: 0, fire: 1, stove: [1, 1] };
+const src = (pos: THREE.Vector3, color: number, distance: number, intensity: () => number): LightSource => ({ position: pos.clone(), color: new THREE.Color(color), distance, decay: 2, intensity });
+pool.add(
+  src(props.lights.fire, 0xff8636, 16, () => 26 * clock.fire),
+  src(props.lights.chandelier, 0xffb066, 24, () => 46 * (0.96 + 0.04 * Math.sin(clock.t * 9.1)) * (1 + 0.25 * clock.awake)),
+  ...props.lights.tables.map((p, i) => src(p, 0xffa15a, 7, flick(3.2, 1, i))),
+  src(shell.torch.clone().add(new THREE.Vector3(0.45, 0.25, 0)), 0xff8a3a, 7, flick(2.2, 1.2, 7)),
+  src(shell.lantern.clone().setY(shell.lantern.y - 0.6), 0x6f8cff, 12, () => 6 + 18 * clock.awake),
+  ...wings.lights.map((l, i) => src(l.pos, l.color, l.distance, flick(l.intensity, l.flicker, i + 11))),
+);
 
 const statueSpot = new THREE.SpotLight(0xd4e2ff, 70, 14, 0.36, 0.65, 2);
 statueSpot.position.set(0, 6.4, -R + 3.4);
@@ -108,10 +113,6 @@ statueSpot.shadow.bias = -0.0005;
 statueSpot.shadow.radius = 3;
 scene.add(statueSpot, statueSpot.target);
 
-// a cool glow from the lantern oculus
-const lanternLight = new THREE.PointLight(0x6f8cff, 6, 12, 2);
-lanternLight.position.copy(shell.lantern).setY(shell.lantern.y - 0.6);
-scene.add(lanternLight);
 
 // procedural interior environment for reflections on polish, brass and glass
 scene.environment = roomEnvironment(renderer);
@@ -159,12 +160,14 @@ if (HI) {
 
 // ------------------------------------------------------------------ game
 const game = new Game({
-  player, audio, shell, props, feathers, fire, candles, camera, dom: renderer.domElement,
+  player, audio, shell, props, wings: wings.refs, feathers, fire, candles, camera, dom: renderer.domElement,
   onStart: () => { void audio.start(props.lights.fire, new THREE.Vector3(R - 0.4, 2.0, -0.1)); },
 });
 player.onStep = () => {
   const r = Math.hypot(player.pos.x, player.pos.z);
-  audio.step(r < 3.6 || (player.pos.x > 5.2 && Math.abs(player.pos.z) < 1.2), player.pos.z > R + 0.3);
+  const inWing = area.roomAt(player.pos.x, player.pos.z) > 0;
+  const onStair = inWing && player.floorY > 0.05 && player.floorY < 3.9;
+  audio.step(r < 3.6 && !inWing, (player.pos.z > R + 0.3 && !inWing) || onStair || (inWing && player.floorY < 0.05));
 };
 
 loading.style.opacity = '0';
@@ -203,8 +206,7 @@ renderer.setAnimationLoop((time) => {
   game.update(dt, t);
   candles.update(dt, t, camera);
   fire.update(dt, t);
-  fireLight.intensity = 26 * fire.intensity;
-  fireLight.position.y = props.lights.fire.y + Math.sin(t * 7.3) * 0.03;
+  clock.t = t; clock.awake = game.awake; clock.fire = fire.intensity;
   audio.setFireLevel(fire.intensity);
   beams.update(t);
   airborne.update(dt, t);
@@ -212,10 +214,11 @@ renderer.setAnimationLoop((time) => {
   shooting.update(dt, t, game.awake);
   for (const a of props.animators) a(dt, t);
   for (const f of extraFx) f(dt, t);
-  chandLight.intensity = 46 * (0.96 + 0.04 * Math.sin(t * 9.1)) * (1 + 0.25 * game.awake);
-  tableLights.forEach((l, i) => { l.intensity = 3.2 * (0.9 + 0.1 * Math.sin(t * (11 + i) + i)); });
-  torch.intensity = 2.2 * (0.85 + 0.15 * Math.sin(t * 12.7));
-  lanternLight.intensity = 6 + 18 * game.awake;
+  pool.update(camera, dt);
+  for (const a of wings.animators) a(dt, t);
+  // dormitory furnishings are only drawn while you are in that wing or its door stands open
+  const here = area.roomAt(player.pos.x, player.pos.z);
+  for (const r of wings.refs) r.props.visible = here === r.wing.bay || (shell.wingDoors.get(r.wing.bay)?.angle ?? 0) > 0.02;
   (shell.sky.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
   audio.updateListener(camera);
   post.update(t);
@@ -249,4 +252,4 @@ function roomEnvironment(r: THREE.WebGLRenderer): THREE.Texture {
   return tex;
 }
 
-if (import.meta.env.DEV) Object.assign(window, { __rc: { THREE, scene, camera, renderer, player, game, post } });
+if (import.meta.env.DEV) Object.assign(window, { __rc: { THREE, scene, camera, renderer, player, game, post, shell, wings, area } });

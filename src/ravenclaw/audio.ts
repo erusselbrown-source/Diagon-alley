@@ -381,6 +381,34 @@ export class TowerAudio {
     });
   }
 
+  /** A soft two-note hoot: low sine with breathy noise, the second note longer. */
+  hoot(): void {
+    if (!this.started) return;
+    const t = this.ctx.currentTime;
+    for (const [at, f, d] of [[0, 410, 0.18], [0.32, 380, 0.5]] as const) {
+      const o = this.ctx.createOscillator(); o.type = 'sine';
+      o.frequency.setValueAtTime(f * 1.05, t + at); o.frequency.linearRampToValueAtTime(f * 0.95, t + at + d);
+      this.env(o, 0.28, 0.04, d, t + at); o.start(t + at); o.stop(t + at + d + 0.1);
+      const s = this.ctx.createBufferSource(); s.buffer = this.noise;
+      const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 6;
+      s.connect(bp); this.env(bp, 0.08, 0.04, d, t + at); s.start(t + at, 0.3, d + 0.1);
+    }
+  }
+
+  /** Purr: low noise amplitude-modulated at ~25 Hz. */
+  purr(): void {
+    if (!this.started) return;
+    const t = this.ctx.currentTime;
+    const s = this.ctx.createBufferSource(); s.buffer = this.noise;
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+    const am = this.ctx.createGain(); am.gain.value = 0;
+    const lfo = this.ctx.createOscillator(); lfo.frequency.value = 24;
+    const lg = this.ctx.createGain(); lg.gain.value = 0.5;
+    lfo.connect(lg).connect(am.gain);
+    s.connect(lp).connect(am); this.env(am, 0.9, 0.3, 2.4, t);
+    s.start(t, 0, 2.8); lfo.start(t); lfo.stop(t + 2.8);
+  }
+
   clockChime(): void {
     if (!this.started) return;
     const t = this.ctx.currentTime;

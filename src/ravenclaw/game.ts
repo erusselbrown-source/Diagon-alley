@@ -9,6 +9,7 @@ import type { Player } from './player';
 import type { TowerAudio } from './audio';
 import type { Shell } from './shell';
 import type { Props } from './props';
+import type { WingRefs } from './wing';
 import type { FeatherSystem, FireSystem, CandleSystem } from './fx';
 import { IS_TOUCH } from '../core/device';
 import { MOON_DIR, R, START, EYE } from './layout';
@@ -38,6 +39,18 @@ const STATUE_TEXT = `<h3>The Founder</h3>
 <p><em>Carved into the bronze plate beneath her feet:</em></p>
 <p style="font-size:1.25em;letter-spacing:0.03em">“Of all the treasures kept within this tower,<br/>the brightest is a mind that keeps on asking.”</p>`;
 
+const LETTERS: Record<'boys' | 'girls', string> = {
+  boys: `<h3>A letter, half finished</h3>
+<p><em>Dear Gran,</em></p>
+<p>The tower is taller than you said. There are two hundred and nine steps to the common room (I counted twice, and got two hundred and eleven the second time, which I think proves something about counting).
+The eagle on the door asked me what grows the more you take from it. I said <em>a hole</em>, and it let me in, though it looked unimpressed.</p>
+<p>The ceiling is painted with stars and some of them move when nobody is watching. I am watching. More soon —</p>`,
+  girls: `<h3>Notes for the astronomy essay</h3>
+<p>1. Moon rising over the loch at 11.40 — check against the chart on the wall, it never quite agrees.</p>
+<p>2. The dome constellations do <em>not</em> match the real sky. Ask whether that is a mistake or a riddle (probably a riddle; everything here is).</p>
+<p>3. Return the library books before the shelves notice. Borrow the one about comets again after.</p>`,
+};
+
 const PAINTING_LINES = [
   'A lone tower beneath a sky full of stars. Someone has painted a tiny lit window near the very top.',
   'Mist rolls off dusky mountains into a still loch. The paint is old and finely cracked.',
@@ -56,6 +69,7 @@ export interface GameDeps {
   audio: TowerAudio;
   shell: Shell;
   props: Props;
+  wings: WingRefs[];
   feathers: FeatherSystem;
   fire: FireSystem;
   candles: CandleSystem;
@@ -85,6 +99,7 @@ export class Game {
   awakeTarget = 0;
   started = false;
   private litTargets = [0, 0, 0, 0, 0, 0, 0];
+  private anims: { obj: THREE.Object3D; target: number }[] = [];
   private orreryTimer = 0;
   private globeSpin = 0;
 
@@ -123,7 +138,7 @@ export class Game {
         <div style="font:600 clamp(40px,8vw,84px)/1 ${SERIF};letter-spacing:.08em;color:#e8c98c;text-shadow:0 0 30px rgba(120,160,255,0.35)">RAVENCLAW</div>
         <div style="font:italic 500 clamp(20px,3.4vw,30px) ${SERIF};color:#c9d6ff;margin:10px 0 26px">The Common Room</div>
         <div style="width:220px;height:1px;margin:0 auto 22px;background:linear-gradient(90deg,transparent,#b07a3e,transparent)"></div>
-        <div style="font:17px/1.6 ${SERIF};color:#d9ccb0;opacity:.9">There is no password to this door — only a question.<br/>Answer the bronze eagle, then find the seven feathers hidden in the tower<br/>to wake the stars painted on the dome.</div>
+        <div style="font:17px/1.6 ${SERIF};color:#d9ccb0;opacity:.9">There is no password to this door — only a question.<br/>Answer the bronze eagle, then find the seven feathers hidden in the tower<br/>to wake the stars painted on the dome. The dormitories are up the turret stairs.</div>
         <div id="rc-start" style="margin-top:30px;font:600 20px ${SERIF};letter-spacing:.18em;color:#f3e3bf">${IS_TOUCH ? 'TAP' : 'CLICK'} TO ENTER</div>
         <div id="rc-load" style="margin-top:10px;font:13px ui-monospace,monospace;color:#8c9cc8"></div>
       </div>`;
@@ -235,6 +250,34 @@ export class Game {
       const wp = new THREE.Vector3(); p.getWorldPosition(wp);
       this.add({ pos: wp, radius: 0.7, range: 4.5, label: () => 'Admire the painting', use: () => this.showToast(PAINTING_LINES[i % PAINTING_LINES.length], 4) });
     });
+    for (const w of this.d.wings) {
+      const leaf = shell.wingDoors.get(w.wing.bay)!;
+      const doorPos = new THREE.Vector3(0, 1.2, 0.2).applyMatrix4(w.wing.matrix);
+      const name = w.wing.kind === 'boys' ? 'boys’ dormitory' : 'girls’ dormitory';
+      this.add({
+        pos: doorPos, radius: 0.75,
+        label: () => (leaf.target > 0 ? `Close the ${name} door` : `Open the door to the ${name}`),
+        use: () => { leaf.target = leaf.target > 0 ? 0 : 1; audio.door(leaf.target > 0); },
+      });
+      for (const bed of w.beds) {
+        this.add({ pos: bed.pos.clone().setY(bed.pos.y - 0.6), radius: 0.8, label: () => (this.poseKind === 'sit' ? null : bed.label), use: () => this.enterPose('sit', { pos: bed.pos.clone(), look: bed.look.clone(), fov: 60 }) });
+      }
+      let lidOpen = false;
+      const lid = w.trunkLid;
+      this.add({
+        pos: w.trunkPos, radius: 0.45, label: () => (lidOpen ? 'Close the trunk' : 'Open the school trunk'),
+        use: () => { lidOpen = !lidOpen; this.anims.push({ obj: lid, target: lidOpen ? 1.25 : 0 }); audio.door(lidOpen); if (lidOpen) this.showToast('Robes, odd socks, a dog-eared book on comets and a jar of something that glows faintly blue.', 4); },
+      });
+      if (w.owl) {
+        const owl = w.owl;
+        const p = new THREE.Vector3(); owl.getWorldPosition(p);
+        this.add({ pos: p.add(new THREE.Vector3(0, 0.25, 0)), radius: 0.35, label: () => 'Stroke the owl', use: () => { audio.hoot(); this.showToast('The tawny owl blinks slowly, hoots once, and fluffs up to twice its size.', 3.5); owl.scale.setScalar(1.12); setTimeout(() => owl.scale.setScalar(1), 700); } });
+      }
+      if (w.catPos) this.add({ pos: w.catPos, radius: 0.4, label: () => 'Pet the cat', use: () => { audio.purr(); this.showToast('A deep, rumbling purr. The cat does not open its eyes.', 3); } });
+      this.add({ pos: w.stove, radius: 0.5, label: () => 'Warm your hands at the stove', use: () => { audio.whoosh(); this.showToast('The iron stove ticks and glows. The kettle on top is still warm.', 3); } });
+      this.add({ pos: w.mirror, radius: 0.4, label: () => 'Look in the mirror', use: () => this.showToast(w.wing.kind === 'boys' ? 'The mirror clears its throat. “Tie straight, hair… optimistic.”' : 'The mirror murmurs, “Lovely. Now go to bed.”', 3.5) });
+      this.add({ pos: w.desk, radius: 0.5, label: () => 'Read the papers on the desk', use: () => { audio.page(); this.openPanel(LETTERS[w.wing.kind]); } });
+    }
     const chessPos = new THREE.Vector3(); props.refs.chess.getWorldPosition(chessPos);
     this.add({ pos: chessPos.add(new THREE.Vector3(0, 0.05, 0)), radius: 0.25, label: () => 'Study the chess game', use: () => this.showToast('A game abandoned mid-thought. Black is three moves from winning, if Black ever comes back.', 4) });
   }
@@ -273,7 +316,7 @@ export class Game {
       'Three. The painted stars seem to lean closer.',
       'Four feathers. The floating candles brighten as if pleased.',
       'Five. The marble founder’s diadem catches a faint blue gleam.',
-      'Six — just one more.',
+      'Six — just one more. Have you looked in both dormitories?',
     ];
     if (this.found < 7) this.showToast(msgs[this.found - 1], 4.5);
     else {
@@ -320,7 +363,7 @@ export class Game {
       this.doorUnlocked = true;
       this.d.shell.door.target = 1;
       setTimeout(() => this.d.audio.door(true), 400);
-      this.showToast('“Well reasoned,” says the eagle, and the door swings open. Seven bronze feathers are hidden in the tower — one is right here on the landing.', 7);
+      this.showToast('“Well reasoned,” says the eagle, and the door swings open. Seven bronze feathers are hidden in the tower — one right here on the landing, others up the dormitory stairs.', 7);
     } else {
       this.d.audio.wrong();
       this.showToast('“A fair guess — but not the answer. Think again, and knock when you are ready.”', 4);
@@ -370,8 +413,15 @@ export class Game {
     // door swing
     const door = shell.door;
     door.angle += (door.target * 1.72 - door.angle) * Math.min(1, dt * 1.6);
-    door.pivot.rotation.y = door.angle;
-    player.doorOpen = door.angle / 1.72;
+    door.pivot.rotation.y = door.base + door.angle;
+    player.area.entranceOpen = door.angle / 1.72;
+    for (const [bay, d] of shell.wingDoors) {
+      d.angle += (d.target * 1.65 - d.angle) * Math.min(1, dt * 1.8);
+      d.pivot.rotation.y = d.base + d.angle;
+      player.area.wingOpen.set(bay, d.angle / 1.65);
+    }
+
+    for (const a of this.anims) a.obj.rotation.x += (a.target - a.obj.rotation.x) * Math.min(1, dt * 4);
 
     // dome constellations and the finale
     const u = shell.dome.uniforms;
