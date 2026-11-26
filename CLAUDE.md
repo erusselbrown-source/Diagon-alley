@@ -13,6 +13,7 @@ Vite + TypeScript + Three.js. `npm run dev` to run, `npm run typecheck` before c
 | `src/props/` | `displays.ts` (prop kinds, `fillDisplay` front risers, book towers, trunks), `dioramas.ts` (`dressWindow`: 1.5 m glowing window interiors + specials), `streetClutter.ts` (collision-aware pavement clutter, caged owls, weeds), `streetlamps.ts` (instanced cast-iron gas lamps, mantles, light cones) |
 | `src/fx/` | Effects implementing `FxSystem`: `chimneySmoke.ts` (curl noise), `flame.ts` (brazier flames + flicker light), `mist.ts` (layered mist cards), `steam.ts` (cauldron steam), `sky.ts` (gradient sky dome: clouds, stars, moon/sun, lightning flash), `rain.ts` (GPU rain streaks), `wand.ts` (first-person wand, spell bolts, spark pool, fireworks), `ambientMagic.ts` (paper planes, notices, lantern motes, owl flock) |
 | `src/audio/` | Procedural Web Audio: `AudioEngine` + `soundscape.ts` (crowd, wind, rain beds; spatial owls, creaks, footsteps, spell chimes, fireworks, thunder) |
+| `src/potions/` | *Cauldron Chaos* (`potions.html`): a separate co-op potions-kitchen game. ASCII level maps + recipes in `data.ts`, set building in `world.ts` (reuses `MaterialLibrary`, renderer, post and `AudioEngine`), simulation in `game.ts`, DOM HUD/menus in `ui.ts`, particles in `fx.ts`, synthesized SFX + music in `sfx.ts` |
 | `src/world/` | Scene assembly (`alley.ts`), `interaction.ts` (wires explorer, wand targets, audio, overlay, keys), `walkArea.ts` (walkable corridors for collision + wand ray-marching), `tour.ts` (cinematic crane keyframes) |
 
 ### Materials
